@@ -17,31 +17,37 @@ mod error;
 mod read;
 mod span;
 mod types;
+pub mod visit;
 
 pub use error::{Error, Result};
 pub use span::JsonSpanner;
 pub use types::JsonValue;
 
-pub fn parse_json_spans<'a>(src: &'a [u8]) -> Result<JsonValue> {
-    let mut span = span::JsonSpanner::new(src);
-
-    span.parse()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use visit::Visit;
+
+    struct NumberPrinter<'a> {
+        src: &'a [u8],
+    }
+
+    impl<'a> Visit for NumberPrinter<'a> {
+        fn visit_number(&mut self, node: &types::Number) {
+            println!(
+                "number: {:?}",
+                String::from_utf8_lossy(&self.src[node.range.clone()])
+            );
+        }
+    }
 
     #[test]
     fn test() {
         let src = b"{ \"foo\": [null,42, {\"test\":\"ok\"},    -16]}";
 
-        let value = parse_json_spans(src).unwrap();
+        let value = span::JsonSpanner::new(src).parse().unwrap();
 
-        println!("{:#?}", value);
-        println!(
-            "value: {:?}",
-            String::from_utf8_lossy(&src[value.range().clone()])
-        );
+        NumberPrinter { src }.visit_value(&value);
     }
 }
