@@ -1,3 +1,9 @@
+//! A JSON span parser.
+//!
+//! # serde-json
+//!
+//! Much of the code in this module is based on or copied from the [serde-json](https://github.com/serde-rs/json) crate.
+
 macro_rules! tri {
     ($e:expr $(,)?) => {
         match $e {
