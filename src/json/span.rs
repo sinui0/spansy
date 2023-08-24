@@ -203,15 +203,29 @@ impl<'a> JsonSpanner<'a> {
                         elems,
                     }));
                 }
-                Some(b',') => {
-                    self.eat_char();
-                }
                 Some(_) => {
                     elems.push(tri!(self.parse_kv(self.read.byte_offset())));
                 }
                 None => {
                     return Err(self.peek_error(ErrorCode::EofWhileParsingObject));
                 }
+            }
+
+            match tri!(self.parse_whitespace()) {
+                Some(b'}') => {
+                    self.eat_char();
+                    return Ok(JsonValue::Object(Object {
+                        range: start..self.read.byte_offset(),
+                        elems,
+                    }));
+                }
+                Some(b',') => {
+                    self.eat_char();
+                    if self.peek_or_null()? == b'}' {
+                        return Err(self.peek_error(ErrorCode::TrailingComma));
+                    }
+                }
+                _ => return Err(self.peek_error(ErrorCode::ExpectedObjectCommaOrEnd)),
             }
         }
     }
@@ -234,14 +248,28 @@ impl<'a> JsonSpanner<'a> {
                         elems,
                     }));
                 }
-                Some(b',') => {
-                    self.eat_char();
-                }
                 Some(_) => elems.push(tri!(self.parse_value(self.read.byte_offset()))),
                 None => {
                     return Err(self.peek_error(ErrorCode::EofWhileParsingList));
                 }
-            };
+            }
+
+            match tri!(self.parse_whitespace()) {
+                Some(b']') => {
+                    self.eat_char();
+                    return Ok(JsonValue::Array(Array {
+                        range: start..self.read.byte_offset(),
+                        elems,
+                    }));
+                }
+                Some(b',') => {
+                    self.eat_char();
+                    if self.peek_or_null()? == b']' {
+                        return Err(self.peek_error(ErrorCode::TrailingComma));
+                    }
+                }
+                _ => return Err(self.peek_error(ErrorCode::ExpectedListCommaOrEnd)),
+            }
         }
     }
 
