@@ -1,0 +1,10 @@
+[package]
+name = "spansy"
+version = "0.1.0"
+edition = "2021"
+description = "Parsing with span information"
+repository = "https://github.com/sinui0/spansy"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+self_cell = "1.0.1"
