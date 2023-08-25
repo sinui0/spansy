@@ -1,47 +1,65 @@
-//! A JSON span parser.
-//!
-//! # serde-json
-//!
-//! Much of the code in this module is based on or copied from the [serde-json](https://github.com/serde-rs/json) crate.
+//! Some support for redacting json using e.g. pest
+use std::ops::Range;
 
-macro_rules! tri {
-    ($e:expr $(,)?) => {
-        match $e {
-            core::result::Result::Ok(val) => val,
-            core::result::Result::Err(err) => return core::result::Result::Err(err),
-        }
-    };
+use pest::{iterators::Pairs, Parser};
+
+pub struct JsonSpanner<'a> {
+    matches: Vec<Match>,
+    pairs: Pairs<'a, crate::json::Rule>,
 }
 
-mod error;
-mod read;
-mod span;
-mod types;
+#[derive(pest_derive::Parser)]
+#[grammar = "json/json.pest"]
+struct JsonParser;
 
-pub use error::{Error, Result};
-pub use span::JsonSpanner;
-pub use types::JsonValue;
+impl<'a> JsonSpanner<'a> {
+    pub fn new(input: &'a str) -> Self {
+        let pairs = JsonParser::parse(Rule::json, input).unwrap();
+        Self {
+            pairs,
+            matches: vec![],
+        }
+    }
 
-pub fn parse_json_spans<'a>(src: &'a [u8]) -> Result<JsonValue> {
-    let mut span = span::JsonSpanner::new(src);
+    pub fn add_match(&mut self, rule: JsonRule, marker: Vec<fn(&str) -> bool>) -> &mut Self {
+        self.matches.push(Match { rule, marker });
 
-    span.parse()
+        self
+    }
+
+    pub fn span_json(&self) -> Vec<Range<usize>> {
+        // Iterate over json and apply matches. If marker returns true then add range for
+        // commitment
+        todo!()
+    }
+}
+
+pub struct Match {
+    rule: JsonRule,
+    marker: Vec<fn(&str) -> bool>,
+}
+
+pub enum JsonRule {
+    Object,
+    Pair,
+    Array,
+    String,
+    Number,
+    Bool,
+    Null,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pest::Parser;
 
     #[test]
-    fn test() {
-        let src = b"{ \"foo\": [null,42, {\"test\":\"ok\"},    -16]}";
+    fn test_json_spanner() {
+        let test_json =
+            r#"{"foo": "bar", "baz": 123, "quux": { "a": "b", "c": "d" }, "arr": [1, 2, 3]}"#;
 
-        let value = parse_json_spans(src).unwrap();
-
-        println!("{:#?}", value);
-        println!(
-            "value: {:?}",
-            String::from_utf8_lossy(&src[value.range().clone()])
-        );
+        let pairs = JsonParser::parse(Rule::json, test_json).unwrap_or_else(|e| panic!("{}", e));
+        println!("{:#?}", pairs);
     }
 }
