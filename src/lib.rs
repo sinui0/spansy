@@ -5,7 +5,7 @@
 
 use std::ops::Range;
 
-//pub mod http;
+pub mod http;
 pub mod json;
 
 /// A parsing error.
@@ -20,14 +20,14 @@ impl<R: pest::RuleType> From<pest::error::Error<R>> for ParseError {
 }
 
 /// A spanned value.
-pub trait Spanned<T: ?Sized> {
+pub trait Spanned<T: ?Sized = [u8]> {
     /// Get a reference to the span of the value.
     fn span(&self) -> &Span<'_, T>;
 }
 
 /// A span of a source string.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Span<'a, T: ?Sized> {
+pub struct Span<'a, T: ?Sized = [u8]> {
     pub(crate) src: &'a [u8],
     pub(crate) span: &'a T,
     pub(crate) range: Range<usize>,
