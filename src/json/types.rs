@@ -57,7 +57,7 @@ impl<'a> JsonValue<'a> {
     ///
     /// let src = "{\"foo\": {\"bar\": [42, 14]}}";
     ///
-    /// let value = JsonSpanner::new(src).parse().unwrap();
+    /// let value = parse(src).unwrap();
     ///
     /// assert_eq!(value.get("foo.bar.1").unwrap().span(), "14");
     /// ```
@@ -225,7 +225,7 @@ impl_type!(Object, span);
 
 #[cfg(test)]
 mod tests {
-    use crate::json::JsonSpanner;
+    use crate::json::parse;
 
     use super::*;
 
@@ -233,7 +233,7 @@ mod tests {
     fn test_obj_index() {
         let src = "{\"foo\": \"bar\"}";
 
-        let value = JsonSpanner::new(src).parse().unwrap();
+        let value = parse(src).unwrap();
 
         assert_eq!(value.get("foo").unwrap().span(), "bar");
     }
@@ -242,7 +242,7 @@ mod tests {
     fn test_array_index() {
         let src = "{\"foo\": [42, 14]}";
 
-        let value = JsonSpanner::new(src).parse().unwrap();
+        let value = parse(src).unwrap();
 
         assert_eq!(value.get("foo.1").unwrap().span(), "14");
     }
@@ -251,7 +251,7 @@ mod tests {
     fn test_nested_index() {
         let src = "{\"foo\": {\"bar\": [42, 14]}}";
 
-        let value = JsonSpanner::new(src).parse().unwrap();
+        let value = parse(src).unwrap();
 
         assert_eq!(value.get("foo.bar.1").unwrap().span(), "14");
     }

@@ -10,12 +10,11 @@
 //! # Example
 //!
 //! ```
-//! use spansy::json::JsonSpanner;
-//! use spansy::Spanned;
+//! use spansy::{json, Spanned};
 //!
 //! let src = "{\"foo\": {\"bar\": [42, 14]}}";
 //!
-//! let value = JsonSpanner::new(src).parse().unwrap();
+//! let value = json::parse(src).unwrap();
 //!
 //! // We can assert that the value present at the path "foo.bar.1" is the number 14.
 //! assert_eq!(value.get("foo.bar.1").unwrap().span(), "14");
@@ -30,6 +29,6 @@ mod span;
 mod types;
 mod visit;
 
-pub use span::JsonSpanner;
+pub use span::parse;
 pub use types::{Array, Bool, JsonKey, JsonValue, Null, Number, Object, String};
 pub use visit::JsonVisit;

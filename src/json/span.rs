@@ -8,29 +8,12 @@ use crate::{ParseError, Span};
 #[grammar = "json/json.pest"]
 struct JsonParser;
 
-/// A JSON span parser.
-pub struct JsonSpanner<'a> {
-    src: &'a str,
-}
-
-impl<'a> JsonSpanner<'a> {
-    /// Create a new JSON span parser with the given source string.
-    pub fn new(src: &'a str) -> Self {
-        Self { src }
-    }
-
-    /// Parse the source string spans.
-    pub fn parse(&self) -> Result<JsonValue<'a>, ParseError> {
-        Ok(JsonParser::parse(Rule::json, self.src)?
-            .next()
-            .ok_or_else(|| {
-                ParseError(format!(
-                    "no JSON value found in source string: {:?}",
-                    self.src
-                ))
-            })?
-            .into())
-    }
+/// Parse a JSON value from a source string.
+pub fn parse(src: &str) -> Result<JsonValue<'_>, ParseError> {
+    Ok(JsonParser::parse(Rule::json, src)?
+        .next()
+        .ok_or_else(|| ParseError(format!("no JSON value found in source string: {:?}", src)))?
+        .into())
 }
 
 impl<'a> From<Pair<'a, Rule>> for types::JsonKey<'a> {
@@ -180,7 +163,7 @@ mod tests {
     fn test_json_spanner() {
         let src = r#"{"foo": "bar", "is": ["he"]}"#;
 
-        let value = JsonSpanner::new(src).parse().unwrap();
+        let value = parse(src).unwrap();
 
         println!("{:#?}", value);
     }
