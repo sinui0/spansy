@@ -3,7 +3,7 @@
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
 
-use std::ops::Range;
+use std::{fmt::Debug, ops::Range};
 
 pub(crate) mod helpers;
 pub mod http;
@@ -20,6 +20,12 @@ impl<R: pest::RuleType> From<pest::error::Error<R>> for ParseError {
     }
 }
 
+impl From<std::str::Utf8Error> for ParseError {
+    fn from(value: std::str::Utf8Error) -> Self {
+        Self(value.to_string())
+    }
+}
+
 /// A spanned value.
 pub trait Spanned<T: ?Sized = [u8]> {
     /// Get a reference to the span of the value.
@@ -27,11 +33,20 @@ pub trait Spanned<T: ?Sized = [u8]> {
 }
 
 /// A span of a source string.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct Span<'a, T: ?Sized = [u8]> {
     pub(crate) src: &'a [u8],
     pub(crate) span: &'a T,
     pub(crate) range: Range<usize>,
+}
+
+impl<T: Debug + ?Sized> Debug for Span<'_, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Span")
+            .field("span", &self.span)
+            .field("range", &self.range)
+            .finish()
+    }
 }
 
 impl Clone for Span<'_, str> {
@@ -98,9 +113,21 @@ impl<'a> Span<'a, str> {
     }
 }
 
+impl AsRef<str> for Span<'_, str> {
+    fn as_ref(&self) -> &str {
+        self.span
+    }
+}
+
 impl<'a> Span<'a, [u8]> {
     /// Returns a reference to the byte span.
     pub fn span(&self) -> &[u8] {
+        self.span
+    }
+}
+
+impl AsRef<[u8]> for Span<'_, [u8]> {
+    fn as_ref(&self) -> &[u8] {
         self.span
     }
 }
@@ -114,6 +141,30 @@ impl<'a> From<Span<'a, str>> for Span<'a, [u8]> {
             span: span.as_bytes(),
             range,
         }
+    }
+}
+
+impl PartialEq<Span<'_>> for [u8] {
+    fn eq(&self, other: &Span<'_>) -> bool {
+        self == other.span
+    }
+}
+
+impl PartialEq<[u8]> for Span<'_> {
+    fn eq(&self, other: &[u8]) -> bool {
+        self.span == other
+    }
+}
+
+impl PartialEq<&[u8]> for Span<'_> {
+    fn eq(&self, other: &&[u8]) -> bool {
+        self.span == *other
+    }
+}
+
+impl PartialEq<[u8]> for &Span<'_> {
+    fn eq(&self, other: &[u8]) -> bool {
+        self.span == other
     }
 }
 

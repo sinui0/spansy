@@ -1,14 +1,14 @@
 use crate::{
     helpers::get_span_range,
-    http::types::{Header, HeaderName, HeaderValue, Request, Response},
-    ParseError, Span,
+    http::types::{Body, Header, HeaderName, HeaderValue, Request, Response},
+    ParseError, Span, Spanned,
 };
 
 const MAX_HEADERS: usize = 128;
 
 /// Parses an HTTP request.
 pub fn parse_request(src: &[u8]) -> Result<Request<'_>, ParseError> {
-    let mut headers = vec![httparse::EMPTY_HEADER; MAX_HEADERS];
+    let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
 
     let (method, path, body_start) = {
         let mut request = httparse::Request::new(&mut headers);
@@ -60,17 +60,66 @@ pub fn parse_request(src: &[u8]) -> Result<Request<'_>, ParseError> {
         })
         .collect();
 
-    Ok(Request {
+    // httparse allocates a new buffer to store the method for performance reasons,
+    // so we have to search for the span in the source. This is quick as the method
+    // is at the front.
+    let method = src
+        .windows(method.len())
+        .find(|w| *w == method.as_bytes())
+        .expect("method is present");
+
+    let mut request = Request {
         span: Span {
             src,
-            span: &src[..body_start],
-            range: 0..body_start,
+            span: src,
+            range: 0..src.len(),
         },
-        method,
-        path,
+        method: Span {
+            src,
+            span: std::str::from_utf8(method).expect("method is valid utf-8"),
+            range: get_span_range(src, method),
+        },
+        path: Span {
+            src,
+            span: path,
+            range: get_span_range(src, path.as_bytes()),
+        },
         headers,
         body: None,
-    })
+    };
+
+    let body_len = if body_start == src.len() {
+        0
+    } else if let Some(h) = request.header("Content-Length") {
+        std::str::from_utf8(h.value.0.span)?
+            .parse::<usize>()
+            .map_err(|err| ParseError(format!("failed to parse Content-Length value: {err}")))?
+    } else if request.header("Transfer-Encoding").is_some() {
+        return Err(ParseError(
+            "Transfer-Encoding not supported yet".to_string(),
+        ));
+    } else {
+        return Err(ParseError(
+            "A request with a body must contain either a Content-Length or Transfer-Encoding header".to_string(),
+        ));
+    };
+
+    if body_len > 0 {
+        request.span = Span {
+            src,
+            span: &src[..body_start + body_len],
+            range: 0..body_start + body_len,
+        };
+
+        let range = body_start..body_start + body_len;
+        request.body = Some(Body(Span {
+            src,
+            span: &src[range.clone()],
+            range,
+        }));
+    }
+
+    Ok(request)
 }
 
 /// Parses an HTTP response.
@@ -93,6 +142,7 @@ mod tests {
                         Accept-Encoding: gzip, deflate, b\n\
                         Referer: https://developer.mozilla.org/testpage.htm\n\
                         Connection: keep-alive\n\
+                        Content-Length: 12\n\
                         Cache-Control: max-age=0\n\n\
                         Hello World!";
 
@@ -114,8 +164,16 @@ mod tests {
     fn test_parse_request() {
         let req = parse_request(TEST_REQUEST).unwrap();
 
-        println!("{:#?}", std::str::from_utf8(req.span().span()).unwrap());
-
-        println!("{}", TEST_REQUEST.len());
+        assert_eq!(req.method().span(), "GET");
+        assert_eq!(
+            req.header("Host").unwrap().value().span(),
+            b"developer.mozilla.org".as_slice()
+        );
+        assert_eq!(
+            req.header("User-Agent").unwrap().value().span(),
+            b"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:50.0) Gecko/20100101 Firefox/50.0"
+                .as_slice()
+        );
+        assert_eq!(req.body().unwrap().span(), b"Hello World!".as_slice());
     }
 }
