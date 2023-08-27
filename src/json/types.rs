@@ -52,7 +52,7 @@ impl<'a> JsonValue<'a> {
     /// # Example
     ///
     /// ```
-    /// use spansy::json::JsonSpanner;
+    /// use spansy::json::parse;
     /// use spansy::Spanned;
     ///
     /// let src = "{\"foo\": {\"bar\": [42, 14]}}";
