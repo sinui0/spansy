@@ -295,7 +295,7 @@ mod tests {
         let req = parse_request(TEST_REQUEST).unwrap();
 
         assert_eq!(req.span(), TEST_REQUEST);
-        assert_eq!(req.method().span(), "GET");
+        assert_eq!(req.method(), "GET");
         assert_eq!(
             req.header("Host").unwrap().value().span(),
             b"developer.mozilla.org".as_slice()
@@ -313,8 +313,8 @@ mod tests {
         let res = parse_response(TEST_RESPONSE).unwrap();
 
         assert_eq!(res.span(), TEST_RESPONSE);
-        assert_eq!(res.code().span(), "200");
-        assert_eq!(res.reason().span(), "OK");
+        assert_eq!(res.code(), "200");
+        assert_eq!(res.reason(), "OK");
         assert_eq!(
             res.header("Server").unwrap().value().span(),
             b"Apache/2.2.14 (Win32)".as_slice()
