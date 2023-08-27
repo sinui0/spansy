@@ -90,9 +90,34 @@ impl Spanned for Request<'_> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Response<'a> {
     pub(crate) span: Span<'a>,
+    pub(crate) code: Span<'a, str>,
     pub(crate) reason: Span<'a, str>,
     pub(crate) headers: Vec<Header<'a>>,
     pub(crate) body: Option<Body<'a>>,
+}
+
+impl<'a> Response<'a> {
+    /// Returns the response code.
+    pub fn code(&self) -> &Span<'a, str> {
+        &self.code
+    }
+
+    /// Returns the response reason.
+    pub fn reason(&self) -> &Span<'a, str> {
+        &self.reason
+    }
+
+    /// Returns the response header with the given name (case-insensitive).
+    pub fn header(&self, name: &str) -> Option<&Header<'a>> {
+        self.headers
+            .iter()
+            .find(|h| h.name.0.span.eq_ignore_ascii_case(name))
+    }
+
+    /// Returns the response body
+    pub fn body(&self) -> Option<&Body<'a>> {
+        self.body.as_ref()
+    }
 }
 
 impl Spanned for Response<'_> {
