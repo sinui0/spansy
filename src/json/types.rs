@@ -21,7 +21,7 @@ pub enum JsonValue<'a> {
 
 impl<'a> JsonValue<'a> {
     /// Returns the span corresponding to the value.
-    pub fn into_span(self) -> Span<'a> {
+    pub fn into_span(self) -> Span<'a, str> {
         match self {
             JsonValue::Null(v) => v.0,
             JsonValue::Bool(v) => v.0,
@@ -33,8 +33,8 @@ impl<'a> JsonValue<'a> {
     }
 }
 
-impl Spanned for JsonValue<'_> {
-    fn span(&self) -> &Span<'_> {
+impl Spanned<str> for JsonValue<'_> {
+    fn span(&self) -> &Span<'_, str> {
         match self {
             JsonValue::Null(v) => v.span(),
             JsonValue::Bool(v) => v.span(),
@@ -81,28 +81,28 @@ pub(crate) struct KeyValue<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A key in a JSON object.
-pub struct JsonKey<'a>(pub(crate) Span<'a>);
+pub struct JsonKey<'a>(pub(crate) Span<'a, str>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A null value.
-pub struct Null<'a>(pub(crate) Span<'a>);
+pub struct Null<'a>(pub(crate) Span<'a, str>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A boolean value.
-pub struct Bool<'a>(pub(crate) Span<'a>);
+pub struct Bool<'a>(pub(crate) Span<'a, str>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A number value.
-pub struct Number<'a>(pub(crate) Span<'a>);
+pub struct Number<'a>(pub(crate) Span<'a, str>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A string value.
-pub struct String<'a>(pub(crate) Span<'a>);
+pub struct String<'a>(pub(crate) Span<'a, str>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// An array value.
 pub struct Array<'a> {
-    pub(crate) span: Span<'a>,
+    pub(crate) span: Span<'a, str>,
     /// The elements of the array.
     pub elems: Vec<JsonValue<'a>>,
 }
@@ -110,7 +110,7 @@ pub struct Array<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// An object value.
 pub struct Object<'a> {
-    pub(crate) span: Span<'a>,
+    pub(crate) span: Span<'a, str>,
     /// The key value pairs of the object.
     pub elems: Vec<(JsonKey<'a>, JsonValue<'a>)>,
 }
@@ -154,13 +154,13 @@ macro_rules! impl_type {
     ($ty:ident, $span:tt) => {
         impl<'a> $ty<'a> {
             /// Returns the span corresponding to the value.
-            pub fn into_span(self) -> Span<'a> {
+            pub fn into_span(self) -> Span<'a, str> {
                 self.$span
             }
         }
 
-        impl Spanned for $ty<'_> {
-            fn span(&self) -> &Span<'_> {
+        impl Spanned<str> for $ty<'_> {
+            fn span(&self) -> &Span<'_, str> {
                 &self.$span
             }
         }
@@ -201,13 +201,13 @@ macro_rules! impl_type {
             }
         }
 
-        impl PartialEq<Span<'_>> for $ty<'_> {
-            fn eq(&self, other: &Span<'_>) -> bool {
+        impl PartialEq<Span<'_, str>> for $ty<'_> {
+            fn eq(&self, other: &Span<'_, str>) -> bool {
                 &self.$span == other
             }
         }
 
-        impl PartialEq<$ty<'_>> for Span<'_> {
+        impl PartialEq<$ty<'_>> for Span<'_, str> {
             fn eq(&self, other: &$ty<'_>) -> bool {
                 self == &other.$span
             }

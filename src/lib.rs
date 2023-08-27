@@ -5,7 +5,7 @@
 
 use std::ops::Range;
 
-pub mod http;
+//pub mod http;
 pub mod json;
 
 /// A parsing error.
@@ -20,26 +20,42 @@ impl<R: pest::RuleType> From<pest::error::Error<R>> for ParseError {
 }
 
 /// A spanned value.
-pub trait Spanned {
+pub trait Spanned<T: ?Sized> {
     /// Get a reference to the span of the value.
-    fn span(&self) -> &Span<'_>;
+    fn span(&self) -> &Span<'_, T>;
 }
 
 /// A span of a source string.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Span<'a> {
-    src: &'a str,
-    range: Range<usize>,
+#[derive(Debug, PartialEq, Eq)]
+pub struct Span<'a, T: ?Sized> {
+    pub(crate) src: &'a [u8],
+    pub(crate) span: &'a T,
+    pub(crate) range: Range<usize>,
 }
 
-impl<'a> Span<'a> {
-    /// Create a new span from a source string and a range.
-    pub(crate) fn new(src: &'a str, range: Range<usize>) -> Self {
-        Self { src, range }
+impl Clone for Span<'_, str> {
+    fn clone(&self) -> Self {
+        Self {
+            src: self.src,
+            span: self.span,
+            range: self.range.clone(),
+        }
     }
+}
 
-    /// Returns a reference to the string span.
-    pub fn src(&self) -> &str {
+impl Clone for Span<'_, [u8]> {
+    fn clone(&self) -> Self {
+        Self {
+            src: self.src,
+            span: self.span,
+            range: self.range.clone(),
+        }
+    }
+}
+
+impl<'a, T: ?Sized> Span<'a, T> {
+    /// Returns a reference to the source string.
+    pub fn src(&self) -> &[u8] {
         self.src
     }
 
@@ -48,7 +64,9 @@ impl<'a> Span<'a> {
         self.range.clone()
     }
 
-    /// Returns the length of the span.
+    /// Returns the length of the span in bytes.
+    ///
+    /// Just like `str::len()`, this is not necessarily the number of characters.
     pub fn len(&self) -> usize {
         self.range.len()
     }
@@ -58,7 +76,7 @@ impl<'a> Span<'a> {
         self.range.is_empty()
     }
 
-    /// Offset the span ranges by the given amount.
+    /// Offset the span ranges by the given number of bytes.
     ///
     /// This is useful when the source string is a substring of a larger string.
     pub fn offset(&mut self, offset: usize) {
@@ -67,50 +85,81 @@ impl<'a> Span<'a> {
     }
 }
 
-impl PartialEq<Span<'_>> for str {
-    fn eq(&self, other: &Span<'_>) -> bool {
-        self == other.src
+impl<'a> Span<'a, str> {
+    /// Returns a reference to the string span.
+    pub fn span(&self) -> &str {
+        self.span
+    }
+
+    /// Returns the corresponding byte span.
+    pub fn to_byte_span(&self) -> Span<'a, [u8]> {
+        self.clone().into()
     }
 }
 
-impl PartialEq<str> for Span<'_> {
+impl<'a> Span<'a, [u8]> {
+    /// Returns a reference to the byte span.
+    pub fn span(&self) -> &[u8] {
+        self.span
+    }
+}
+
+impl<'a> From<Span<'a, str>> for Span<'a, [u8]> {
+    fn from(span: Span<'a, str>) -> Self {
+        let Span { src, span, range } = span;
+
+        Self {
+            src,
+            span: span.as_bytes(),
+            range,
+        }
+    }
+}
+
+impl PartialEq<Span<'_, str>> for str {
+    fn eq(&self, other: &Span<'_, str>) -> bool {
+        self == other.span
+    }
+}
+
+impl PartialEq<str> for Span<'_, str> {
     fn eq(&self, other: &str) -> bool {
-        self.src == other
+        self.span == other
     }
 }
 
-impl PartialEq<&str> for Span<'_> {
+impl PartialEq<&str> for Span<'_, str> {
     fn eq(&self, other: &&str) -> bool {
-        self.src == *other
+        self.span == *other
     }
 }
 
-impl PartialEq<str> for &Span<'_> {
+impl PartialEq<str> for &Span<'_, str> {
     fn eq(&self, other: &str) -> bool {
-        self.src == other
+        self.span == other
     }
 }
 
-impl PartialEq<Range<usize>> for Span<'_> {
+impl PartialEq<Range<usize>> for Span<'_, str> {
     fn eq(&self, other: &Range<usize>) -> bool {
         &self.range == other
     }
 }
 
-impl PartialEq<Span<'_>> for Range<usize> {
-    fn eq(&self, other: &Span<'_>) -> bool {
+impl<T: ?Sized> PartialEq<Span<'_, T>> for Range<usize> {
+    fn eq(&self, other: &Span<'_, T>) -> bool {
         self == &other.range
     }
 }
 
-impl PartialEq<Range<usize>> for &Span<'_> {
+impl<T: ?Sized> PartialEq<Range<usize>> for &Span<'_, T> {
     fn eq(&self, other: &Range<usize>) -> bool {
         &self.range == other
     }
 }
 
-impl PartialEq<Span<'_>> for &Range<usize> {
-    fn eq(&self, other: &Span<'_>) -> bool {
+impl<T: ?Sized> PartialEq<Span<'_, T>> for &Range<usize> {
+    fn eq(&self, other: &Span<'_, T>) -> bool {
         **self == other.range
     }
 }

@@ -10,5 +10,4 @@ license = "MIT OR Apache-2.0"
 httparse = "1.8.0"
 pest = { version = "2.7.2" }
 pest_derive = { version = "2.7.2" }
-self_cell = "1.0.1"
 thiserror = "1.0.47"

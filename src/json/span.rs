@@ -20,10 +20,14 @@ impl<'a> From<Pair<'a, Rule>> for types::JsonKey<'a> {
     fn from(value: Pair<'a, Rule>) -> Self {
         assert!(matches!(value.as_rule(), Rule::string));
 
-        Self(Span::new(
-            value.as_str(),
-            value.as_span().start()..value.as_span().end(),
-        ))
+        let span = value.as_span();
+        let range = span.start()..span.end();
+
+        Self(Span {
+            src: value.get_input().as_bytes(),
+            span: value.as_str(),
+            range,
+        })
     }
 }
 
@@ -31,10 +35,14 @@ impl<'a> From<Pair<'a, Rule>> for types::Number<'a> {
     fn from(value: Pair<'a, Rule>) -> Self {
         assert!(matches!(value.as_rule(), Rule::number));
 
-        Self(Span::new(
-            value.as_str(),
-            value.as_span().start()..value.as_span().end(),
-        ))
+        let span = value.as_span();
+        let range = span.start()..span.end();
+
+        Self(Span {
+            src: value.get_input().as_bytes(),
+            span: value.as_str(),
+            range,
+        })
     }
 }
 
@@ -42,10 +50,14 @@ impl<'a> From<Pair<'a, Rule>> for types::Bool<'a> {
     fn from(value: Pair<'a, Rule>) -> Self {
         assert!(matches!(value.as_rule(), Rule::bool));
 
-        Self(Span::new(
-            value.as_str(),
-            value.as_span().start()..value.as_span().end(),
-        ))
+        let span = value.as_span();
+        let range = span.start()..span.end();
+
+        Self(Span {
+            src: value.get_input().as_bytes(),
+            span: value.as_str(),
+            range,
+        })
     }
 }
 
@@ -53,10 +65,14 @@ impl<'a> From<Pair<'a, Rule>> for types::Null<'a> {
     fn from(value: Pair<'a, Rule>) -> Self {
         assert!(matches!(value.as_rule(), Rule::null));
 
-        Self(Span::new(
-            value.as_str(),
-            value.as_span().start()..value.as_span().end(),
-        ))
+        let span = value.as_span();
+        let range = span.start()..span.end();
+
+        Self(Span {
+            src: value.get_input().as_bytes(),
+            span: value.as_str(),
+            range,
+        })
     }
 }
 
@@ -64,10 +80,14 @@ impl<'a> From<Pair<'a, Rule>> for types::String<'a> {
     fn from(value: Pair<'a, Rule>) -> Self {
         assert!(matches!(value.as_rule(), Rule::string));
 
-        Self(Span::new(
-            value.as_str(),
-            value.as_span().start()..value.as_span().end(),
-        ))
+        let span = value.as_span();
+        let range = span.start()..span.end();
+
+        Self(Span {
+            src: value.get_input().as_bytes(),
+            span: value.as_str(),
+            range,
+        })
     }
 }
 
@@ -75,11 +95,17 @@ impl<'a> From<Pair<'a, Rule>> for types::Object<'a> {
     fn from(value: Pair<'a, Rule>) -> Self {
         assert!(matches!(value.as_rule(), Rule::object));
 
+        let span = value.as_span();
+        let range = span.start()..span.end();
+
+        let span = Span {
+            src: value.get_input().as_bytes(),
+            span: value.as_str(),
+            range,
+        };
+
         types::Object {
-            span: Span::new(
-                value.as_str(),
-                value.as_span().start()..value.as_span().end(),
-            ),
+            span,
             elems: value
                 .into_inner()
                 .map(|pair| {
@@ -95,11 +121,17 @@ impl<'a> From<Pair<'a, Rule>> for types::Array<'a> {
     fn from(value: Pair<'a, Rule>) -> Self {
         assert!(matches!(value.as_rule(), Rule::array));
 
+        let span = value.as_span();
+        let range = span.start()..span.end();
+
+        let span = Span {
+            src: value.get_input().as_bytes(),
+            span: value.as_str(),
+            range,
+        };
+
         types::Array {
-            span: Span::new(
-                value.as_str(),
-                value.as_span().start()..value.as_span().end(),
-            ),
+            span,
             elems: value.into_inner().map(|pair| pair.into()).collect(),
         }
     }
