@@ -5,6 +5,7 @@
 
 use std::ops::Range;
 
+pub(crate) mod helpers;
 pub mod http;
 pub mod json;
 
