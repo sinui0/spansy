@@ -1,7 +1,7 @@
 use crate::{
     helpers::get_span_range,
     http::types::{Body, Header, HeaderName, HeaderValue, Request, Response},
-    ParseError, Span, Spanned,
+    ParseError, Span,
 };
 
 const MAX_HEADERS: usize = 128;
