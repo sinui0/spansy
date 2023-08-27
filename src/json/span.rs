@@ -138,33 +138,19 @@ impl<'a> From<Pair<'a, Rule>> for types::KeyValue<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::Spanned;
+
     use super::*;
-    use pest::Parser;
-
-    #[test]
-    fn test_json_parser() {
-        let src = r#"{"foo": "bar", "baz": 123, "quux": { "a": "b", "c": "d" }, "arr": [1, 2, 3]}"#;
-
-        let value = JsonParser::parse(Rule::json, src).unwrap();
-
-        println!("{:#?}", value);
-    }
-
-    #[test]
-    fn test_json_parser_array() {
-        let src = r#"[1, 2, 3]"#;
-
-        let value = JsonParser::parse(Rule::json, src).unwrap();
-
-        println!("{:#?}", value);
-    }
 
     #[test]
     fn test_json_spanner() {
-        let src = r#"{"foo": "bar", "is": ["he"]}"#;
+        let src = r#"{"foo": "bar", "baz": 123, "quux": { "a": "b", "c": "d" }, "arr": [1, 2, 3]}"#;
 
         let value = parse(src).unwrap();
 
-        println!("{:#?}", value);
+        assert_eq!(value.get("foo").unwrap().span(), "bar");
+        assert_eq!(value.get("baz").unwrap().span(), "123");
+        assert_eq!(value.get("quux.a").unwrap().span(), "b");
+        assert_eq!(value.get("arr").unwrap().span(), "[1, 2, 3]");
     }
 }
