@@ -1,53 +1,35 @@
-//! A JSON span parser.
+//! JSON span parsing.
 //!
-//! # serde-json
+//! This module provides a JSON parser that can be used to parse span information for each JSON value within
+//! a source string.
 //!
-//! Much of the code in this module is based on or copied from the [serde-json](https://github.com/serde-rs/json) crate.
+//! Note that the parser does *not* fully parse values, it simply computes the span of the corresponding
+//! characters in the source string. Thus, this parser should not be expected to perform any kind of
+//! validation of the JSON.
+//!
+//! # Example
+//!
+//! ```
+//! use spansy::json::JsonSpanner;
+//! use spansy::Spanned;
+//!
+//! let src = "{\"foo\": {\"bar\": [42, 14]}}";
+//!
+//! let value = JsonSpanner::new(src).parse().unwrap();
+//!
+//! // We can assert that the value present at the path "foo.bar.1" is the number 14.
+//! assert_eq!(value.get("foo.bar.1").unwrap().span(), "14");
+//!
+//! let bar = value.get("foo.bar").unwrap();
+//!
+//! // The span of the `bar` array is 16..24 within the source string.
+//! assert_eq!(bar.span().range(), 16..24);
+//! ```
 
-macro_rules! tri {
-    ($e:expr $(,)?) => {
-        match $e {
-            core::result::Result::Ok(val) => val,
-            core::result::Result::Err(err) => return core::result::Result::Err(err),
-        }
-    };
-}
-
-mod error;
-mod read;
 mod span;
 mod types;
-pub mod visit;
+mod visit;
 
-pub use error::{Error, Result};
 pub use span::JsonSpanner;
-pub use types::JsonValue;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use visit::Visit;
-
-    struct NumberPrinter<'a> {
-        src: &'a [u8],
-    }
-
-    impl<'a> Visit for NumberPrinter<'a> {
-        fn visit_number(&mut self, node: &types::Number) {
-            println!(
-                "number: {:?}",
-                String::from_utf8_lossy(&self.src[node.range.clone()])
-            );
-        }
-    }
-
-    #[test]
-    fn test() {
-        let src = b"{ \"foo\": [null,42, {\"test\":\"ok\"},    -16]}";
-
-        let value = span::JsonSpanner::new(src).parse().unwrap();
-
-        NumberPrinter { src }.visit_value(&value);
-    }
-}
+pub use types::{Array, Bool, JsonKey, JsonValue, Null, Number, Object, String};
+pub use visit::JsonVisit;

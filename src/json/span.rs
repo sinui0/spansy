@@ -1,355 +1,187 @@
-//! Deserialize JSON data to a Rust data structure.
+use pest::{iterators::Pair, Parser};
 
-use crate::json::{
-    error::{Error, ErrorCode, Result},
-    types::{Bool, JsonValue, Null, String as JsonString},
-};
+use super::types::{self, JsonValue};
 
-use super::{
-    read::{Read, SliceRead},
-    types::{Array, JsonKey, Number, Object},
-};
+use crate::{ParseError, Span};
 
-//////////////////////////////////////////////////////////////////////////////
+#[derive(pest_derive::Parser)]
+#[grammar = "json/json.pest"]
+struct JsonParser;
 
-/// A structure that parses JSON spans.
+/// A JSON span parser.
 pub struct JsonSpanner<'a> {
-    read: SliceRead<'a>,
+    src: &'a str,
 }
 
 impl<'a> JsonSpanner<'a> {
-    /// Create a JSON deserializer from one of the possible serde_json input
-    /// sources.
-    ///
-    /// Typically it is more convenient to use one of these methods instead:
-    ///
-    ///   - Deserializer::from_str
-    ///   - Deserializer::from_slice
-    ///   - Deserializer::from_reader
-    pub fn new(src: &'a [u8]) -> Self {
-        JsonSpanner {
-            read: SliceRead::new(src),
-        }
+    /// Create a new JSON span parser with the given source string.
+    pub fn new(src: &'a str) -> Self {
+        Self { src }
+    }
+
+    /// Parse the source string spans.
+    pub fn parse(&self) -> Result<JsonValue<'a>, ParseError> {
+        Ok(JsonParser::parse(Rule::json, self.src)?
+            .next()
+            .ok_or_else(|| {
+                ParseError(format!(
+                    "no JSON value found in source string: {:?}",
+                    self.src
+                ))
+            })?
+            .into())
     }
 }
 
-impl<'a> JsonSpanner<'a> {
-    /// The `Deserializer::end` method should be called after a value has been fully deserialized.
-    /// This allows the `Deserializer` to validate that the input stream is at the end or that it
-    /// only has trailing whitespace.
-    pub fn end(&mut self) -> Result<()> {
-        match tri!(self.parse_whitespace()) {
-            Some(_) => Err(self.peek_error(ErrorCode::TrailingCharacters)),
-            None => Ok(()),
-        }
+impl<'a> From<Pair<'a, Rule>> for types::JsonKey<'a> {
+    fn from(value: Pair<'a, Rule>) -> Self {
+        assert!(matches!(value.as_rule(), Rule::string));
+
+        Self(Span::new(
+            value.as_str(),
+            value.as_span().start()..value.as_span().end(),
+        ))
     }
+}
 
-    pub(crate) fn peek(&mut self) -> Result<Option<u8>> {
-        self.read.peek()
+impl<'a> From<Pair<'a, Rule>> for types::Number<'a> {
+    fn from(value: Pair<'a, Rule>) -> Self {
+        assert!(matches!(value.as_rule(), Rule::number));
+
+        Self(Span::new(
+            value.as_str(),
+            value.as_span().start()..value.as_span().end(),
+        ))
     }
+}
 
-    fn peek_or_null(&mut self) -> Result<u8> {
-        Ok(tri!(self.peek()).unwrap_or(b'\x00'))
+impl<'a> From<Pair<'a, Rule>> for types::Bool<'a> {
+    fn from(value: Pair<'a, Rule>) -> Self {
+        assert!(matches!(value.as_rule(), Rule::bool));
+
+        Self(Span::new(
+            value.as_str(),
+            value.as_span().start()..value.as_span().end(),
+        ))
     }
+}
 
-    fn eat_char(&mut self) {
-        self.read.discard();
+impl<'a> From<Pair<'a, Rule>> for types::Null<'a> {
+    fn from(value: Pair<'a, Rule>) -> Self {
+        assert!(matches!(value.as_rule(), Rule::null));
+
+        Self(Span::new(
+            value.as_str(),
+            value.as_span().start()..value.as_span().end(),
+        ))
     }
+}
 
-    fn next_char(&mut self) -> Result<Option<u8>> {
-        self.read.next()
+impl<'a> From<Pair<'a, Rule>> for types::String<'a> {
+    fn from(value: Pair<'a, Rule>) -> Self {
+        assert!(matches!(value.as_rule(), Rule::string));
+
+        Self(Span::new(
+            value.as_str(),
+            value.as_span().start()..value.as_span().end(),
+        ))
     }
+}
 
-    fn next_char_or_null(&mut self) -> Result<u8> {
-        Ok(tri!(self.next_char()).unwrap_or(b'\x00'))
-    }
+impl<'a> From<Pair<'a, Rule>> for types::Object<'a> {
+    fn from(value: Pair<'a, Rule>) -> Self {
+        assert!(matches!(value.as_rule(), Rule::object));
 
-    /// Error caused by a byte from next_char().
-    #[cold]
-    fn error(&self, reason: ErrorCode) -> Error {
-        let position = self.read.position();
-        Error::syntax(reason, position.line, position.column)
-    }
-
-    /// Error caused by a byte from peek().
-    #[cold]
-    fn peek_error(&self, reason: ErrorCode) -> Error {
-        let position = self.read.peek_position();
-        Error::syntax(reason, position.line, position.column)
-    }
-
-    /// Returns the first non-whitespace byte without consuming it, or `None` if
-    /// EOF is encountered.
-    fn parse_whitespace(&mut self) -> Result<Option<u8>> {
-        loop {
-            match tri!(self.peek()) {
-                Some(b' ' | b'\n' | b'\t' | b'\r') => {
-                    self.eat_char();
-                }
-                other => {
-                    return Ok(other);
-                }
-            }
-        }
-    }
-
-    fn parse_ident(&mut self, ident: &[u8]) -> Result<()> {
-        for expected in ident {
-            match tri!(self.next_char()) {
-                None => {
-                    return Err(self.error(ErrorCode::EofWhileParsingValue));
-                }
-                Some(next) => {
-                    if next != *expected {
-                        return Err(self.error(ErrorCode::ExpectedSomeIdent));
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn parse_object_colon(&mut self) -> Result<()> {
-        match tri!(self.parse_whitespace()) {
-            Some(b':') => {
-                self.eat_char();
-                Ok(())
-            }
-            Some(_) => Err(self.peek_error(ErrorCode::ExpectedColon)),
-            None => Err(self.peek_error(ErrorCode::EofWhileParsingObject)),
-        }
-    }
-
-    fn parse_key(&mut self, start: usize) -> Result<JsonKey> {
-        match tri!(self.parse_whitespace()) {
-            Some(b'"') => {
-                self.eat_char();
-                tri!(self.read.ignore_str());
-                Ok(JsonKey {
-                    range: start..self.read.byte_offset(),
+        types::Object {
+            span: Span::new(
+                value.as_str(),
+                value.as_span().start()..value.as_span().end(),
+            ),
+            elems: value
+                .into_inner()
+                .map(|pair| {
+                    let types::KeyValue { key, value } = types::KeyValue::try_from(pair).unwrap();
+                    (key, value)
                 })
-            }
-            Some(_) => Err(self.peek_error(ErrorCode::KeyMustBeAString)),
-            None => Err(self.peek_error(ErrorCode::EofWhileParsingValue)),
+                .collect(),
         }
     }
+}
 
-    pub fn parse(&mut self) -> Result<JsonValue> {
-        let start = self.read.byte_offset();
-        self.parse_value(start)
-    }
+impl<'a> From<Pair<'a, Rule>> for types::Array<'a> {
+    fn from(value: Pair<'a, Rule>) -> Self {
+        assert!(matches!(value.as_rule(), Rule::array));
 
-    fn parse_value(&mut self, start: usize) -> Result<JsonValue> {
-        let peek = match tri!(self.parse_whitespace()) {
-            Some(b) => b,
-            None => {
-                return Err(self.peek_error(ErrorCode::EofWhileParsingValue));
-            }
-        };
-
-        match peek {
-            b'n' => {
-                self.eat_char();
-                tri!(self.parse_ident(b"ull"));
-                Ok(JsonValue::Null(Null {
-                    range: start..self.read.byte_offset(),
-                }))
-            }
-            b't' => {
-                self.eat_char();
-                tri!(self.parse_ident(b"rue"));
-                Ok(JsonValue::Bool(Bool {
-                    range: start..self.read.byte_offset(),
-                }))
-            }
-            b'f' => {
-                self.eat_char();
-                tri!(self.parse_ident(b"alse"));
-                Ok(JsonValue::Bool(Bool {
-                    range: start..self.read.byte_offset(),
-                }))
-            }
-            b'-' => {
-                self.eat_char();
-                self.parse_integer(start)
-            }
-            b'0'..=b'9' => self.parse_integer(start),
-            b'"' => {
-                self.eat_char();
-                self.parse_string(start)
-            }
-            b'[' => {
-                self.eat_char();
-                self.parse_array(start)
-            }
-            b'{' => {
-                // self.scratch.extend(enclosing.take());
-                self.eat_char();
-                self.parse_object(start)
-            }
-            _ => Err(self.peek_error(ErrorCode::ExpectedSomeValue)),
+        types::Array {
+            span: Span::new(
+                value.as_str(),
+                value.as_span().start()..value.as_span().end(),
+            ),
+            elems: value.into_inner().map(|pair| pair.into()).collect(),
         }
     }
+}
 
-    fn parse_object(&mut self, start: usize) -> Result<JsonValue> {
-        let mut elems = Vec::new();
-        loop {
-            match tri!(self.parse_whitespace()) {
-                Some(b'}') => {
-                    self.eat_char();
-                    return Ok(JsonValue::Object(Object {
-                        range: start..self.read.byte_offset(),
-                        elems,
-                    }));
-                }
-                Some(_) => {
-                    elems.push(tri!(self.parse_kv(self.read.byte_offset())));
-                }
-                None => {
-                    return Err(self.peek_error(ErrorCode::EofWhileParsingObject));
-                }
-            }
-
-            match tri!(self.parse_whitespace()) {
-                Some(b'}') => {
-                    self.eat_char();
-                    return Ok(JsonValue::Object(Object {
-                        range: start..self.read.byte_offset(),
-                        elems,
-                    }));
-                }
-                Some(b',') => {
-                    self.eat_char();
-                    if self.peek_or_null()? == b'}' {
-                        return Err(self.peek_error(ErrorCode::TrailingComma));
-                    }
-                }
-                _ => return Err(self.peek_error(ErrorCode::ExpectedObjectCommaOrEnd)),
-            }
+impl<'a> From<Pair<'a, Rule>> for types::JsonValue<'a> {
+    fn from(value: Pair<'a, Rule>) -> Self {
+        match value.as_rule() {
+            Rule::object => JsonValue::Object(value.into()),
+            Rule::array => JsonValue::Array(value.into()),
+            Rule::string => JsonValue::String(value.into()),
+            Rule::number => JsonValue::Number(value.into()),
+            Rule::bool => JsonValue::Bool(value.into()),
+            Rule::null => JsonValue::Null(value.into()),
+            rule => unreachable!("unexpected matched rule: {:?}", rule),
         }
     }
+}
 
-    fn parse_kv(&mut self, start: usize) -> Result<(JsonKey, JsonValue)> {
-        let key = tri!(self.parse_key(start));
-        tri!(self.parse_object_colon());
-        let value = tri!(self.parse_value(self.read.byte_offset()));
-        Ok((key, value))
-    }
+impl<'a> From<Pair<'a, Rule>> for types::KeyValue<'a> {
+    fn from(value: Pair<'a, Rule>) -> Self {
+        assert!(matches!(value.as_rule(), Rule::pair));
 
-    fn parse_array(&mut self, start: usize) -> Result<JsonValue> {
-        let mut elems = Vec::new();
-        loop {
-            match tri!(self.parse_whitespace()) {
-                Some(b']') => {
-                    self.eat_char();
-                    return Ok(JsonValue::Array(Array {
-                        range: start..self.read.byte_offset(),
-                        elems,
-                    }));
-                }
-                Some(_) => elems.push(tri!(self.parse_value(self.read.byte_offset()))),
-                None => {
-                    return Err(self.peek_error(ErrorCode::EofWhileParsingList));
-                }
-            }
+        let [key, value]: [Pair<'a, Rule>; 2] = value
+            .into_inner()
+            .collect::<Vec<_>>()
+            .try_into()
+            .expect("pair has two children");
 
-            match tri!(self.parse_whitespace()) {
-                Some(b']') => {
-                    self.eat_char();
-                    return Ok(JsonValue::Array(Array {
-                        range: start..self.read.byte_offset(),
-                        elems,
-                    }));
-                }
-                Some(b',') => {
-                    self.eat_char();
-                    if self.peek_or_null()? == b']' {
-                        return Err(self.peek_error(ErrorCode::TrailingComma));
-                    }
-                }
-                _ => return Err(self.peek_error(ErrorCode::ExpectedListCommaOrEnd)),
-            }
+        Self {
+            key: key.into(),
+            value: value.into(),
         }
     }
+}
 
-    fn parse_string(&mut self, start: usize) -> Result<JsonValue> {
-        tri!(self.read.ignore_str());
-        Ok(JsonValue::String(JsonString {
-            range: start..self.read.byte_offset(),
-        }))
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pest::Parser;
+
+    #[test]
+    fn test_json_parser() {
+        let src = r#"{"foo": "bar", "baz": 123, "quux": { "a": "b", "c": "d" }, "arr": [1, 2, 3]}"#;
+
+        let value = JsonParser::parse(Rule::json, src).unwrap();
+
+        println!("{:#?}", value);
     }
 
-    fn parse_integer(&mut self, start: usize) -> Result<JsonValue> {
-        match tri!(self.next_char_or_null()) {
-            b'0' => {
-                // There can be only one leading '0'.
-                if let b'0'..=b'9' = tri!(self.peek_or_null()) {
-                    return Err(self.peek_error(ErrorCode::InvalidNumber));
-                }
-            }
-            b'1'..=b'9' => {
-                while let b'0'..=b'9' = tri!(self.peek_or_null()) {
-                    self.eat_char();
-                }
-            }
-            _ => {
-                return Err(self.error(ErrorCode::InvalidNumber));
-            }
-        }
+    #[test]
+    fn test_json_parser_array() {
+        let src = r#"[1, 2, 3]"#;
 
-        match tri!(self.peek_or_null()) {
-            b'.' => self.parse_decimal(start),
-            b'e' | b'E' => self.parse_exponent(start),
-            _ => Ok(JsonValue::Number(Number {
-                range: start..self.read.byte_offset(),
-            })),
-        }
+        let value = JsonParser::parse(Rule::json, src).unwrap();
+
+        println!("{:#?}", value);
     }
 
-    fn parse_decimal(&mut self, start: usize) -> Result<JsonValue> {
-        self.eat_char();
+    #[test]
+    fn test_json_spanner() {
+        let src = r#"{"foo": "bar", "is": ["he"]}"#;
 
-        let mut at_least_one_digit = false;
-        while let b'0'..=b'9' = tri!(self.peek_or_null()) {
-            self.eat_char();
-            at_least_one_digit = true;
-        }
+        let value = JsonSpanner::new(src).parse().unwrap();
 
-        if !at_least_one_digit {
-            return Err(self.peek_error(ErrorCode::InvalidNumber));
-        }
-
-        match tri!(self.peek_or_null()) {
-            b'e' | b'E' => self.parse_exponent(start),
-            _ => Ok(JsonValue::Number(Number {
-                range: start..self.read.byte_offset(),
-            })),
-        }
-    }
-
-    fn parse_exponent(&mut self, start: usize) -> Result<JsonValue> {
-        self.eat_char();
-
-        match tri!(self.peek_or_null()) {
-            b'+' | b'-' => self.eat_char(),
-            _ => {}
-        }
-
-        // Make sure a digit follows the exponent place.
-        match tri!(self.next_char_or_null()) {
-            b'0'..=b'9' => {}
-            _ => {
-                return Err(self.error(ErrorCode::InvalidNumber));
-            }
-        }
-
-        while let b'0'..=b'9' = tri!(self.peek_or_null()) {
-            self.eat_char();
-        }
-
-        Ok(JsonValue::Number(Number {
-            range: start..self.read.byte_offset(),
-        }))
+        println!("{:#?}", value);
     }
 }
