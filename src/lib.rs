@@ -5,6 +5,7 @@
 
 use std::ops::Range;
 
+pub mod http;
 pub mod json;
 
 /// A parsing error.
