@@ -24,20 +24,10 @@ impl Spanned for HeaderValue<'_> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Header<'a> {
     pub(crate) span: Span<'a>,
-    pub(crate) name: HeaderName<'a>,
-    pub(crate) value: HeaderValue<'a>,
-}
-
-impl<'a> Header<'a> {
-    /// Returns the header name.
-    pub fn name(&self) -> &HeaderName<'a> {
-        &self.name
-    }
-
-    /// Returns the header value.
-    pub fn value(&self) -> &HeaderValue<'a> {
-        &self.value
-    }
+    /// The header name.
+    pub name: HeaderName<'a>,
+    /// The header value.
+    pub value: HeaderValue<'a>,
 }
 
 impl Spanned for Header<'_> {
@@ -50,33 +40,22 @@ impl Spanned for Header<'_> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Request<'a> {
     pub(crate) span: Span<'a>,
-    pub(crate) method: Span<'a, str>,
-    pub(crate) path: Span<'a, str>,
-    pub(crate) headers: Vec<Header<'a>>,
-    pub(crate) body: Option<Body<'a>>,
+    /// The request method.
+    pub method: Span<'a, str>,
+    /// The request path.
+    pub path: Span<'a, str>,
+    /// Request headers.
+    pub headers: Vec<Header<'a>>,
+    /// Request body.
+    pub body: Option<Body<'a>>,
 }
 
 impl<'a> Request<'a> {
-    /// Returns the request method.
-    pub fn method(&self) -> &Span<'a, str> {
-        &self.method
-    }
-
-    /// Returns the request path.
-    pub fn path(&self) -> &Span<'a, str> {
-        &self.path
-    }
-
     /// Returns the request header with the given name (case-insensitive).
     pub fn header(&self, name: &str) -> Option<&Header<'a>> {
         self.headers
             .iter()
             .find(|h| h.name.0.span.eq_ignore_ascii_case(name))
-    }
-
-    /// Returns the request body
-    pub fn body(&self) -> Option<&Body<'a>> {
-        self.body.as_ref()
     }
 }
 
@@ -90,33 +69,22 @@ impl Spanned for Request<'_> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Response<'a> {
     pub(crate) span: Span<'a>,
-    pub(crate) code: Span<'a, str>,
-    pub(crate) reason: Span<'a, str>,
-    pub(crate) headers: Vec<Header<'a>>,
-    pub(crate) body: Option<Body<'a>>,
+    /// The response code.
+    pub code: Span<'a, str>,
+    /// The reason phrase.
+    pub reason: Span<'a, str>,
+    /// Response headers.
+    pub headers: Vec<Header<'a>>,
+    /// Response body.
+    pub body: Option<Body<'a>>,
 }
 
 impl<'a> Response<'a> {
-    /// Returns the response code.
-    pub fn code(&self) -> &Span<'a, str> {
-        &self.code
-    }
-
-    /// Returns the response reason.
-    pub fn reason(&self) -> &Span<'a, str> {
-        &self.reason
-    }
-
     /// Returns the response header with the given name (case-insensitive).
     pub fn header(&self, name: &str) -> Option<&Header<'a>> {
         self.headers
             .iter()
             .find(|h| h.name.0.span.eq_ignore_ascii_case(name))
-    }
-
-    /// Returns the response body
-    pub fn body(&self) -> Option<&Body<'a>> {
-        self.body.as_ref()
     }
 }
 

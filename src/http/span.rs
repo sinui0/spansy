@@ -295,17 +295,17 @@ mod tests {
         let req = parse_request(TEST_REQUEST).unwrap();
 
         assert_eq!(req.span(), TEST_REQUEST);
-        assert_eq!(req.method(), "GET");
+        assert_eq!(req.method, "GET");
         assert_eq!(
-            req.header("Host").unwrap().value().span(),
+            req.header("Host").unwrap().value.span(),
             b"developer.mozilla.org".as_slice()
         );
         assert_eq!(
-            req.header("User-Agent").unwrap().value().span(),
+            req.header("User-Agent").unwrap().value.span(),
             b"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:50.0) Gecko/20100101 Firefox/50.0"
                 .as_slice()
         );
-        assert_eq!(req.body().unwrap().span(), b"Hello World!".as_slice());
+        assert_eq!(req.body.unwrap().span(), b"Hello World!".as_slice());
     }
 
     #[test]
@@ -313,18 +313,18 @@ mod tests {
         let res = parse_response(TEST_RESPONSE).unwrap();
 
         assert_eq!(res.span(), TEST_RESPONSE);
-        assert_eq!(res.code(), "200");
-        assert_eq!(res.reason(), "OK");
+        assert_eq!(res.code, "200");
+        assert_eq!(res.reason, "OK");
         assert_eq!(
-            res.header("Server").unwrap().value().span(),
+            res.header("Server").unwrap().value.span(),
             b"Apache/2.2.14 (Win32)".as_slice()
         );
         assert_eq!(
-            res.header("Connection").unwrap().value().span(),
+            res.header("Connection").unwrap().value.span(),
             b"Closed".as_slice()
         );
         assert_eq!(
-            res.body().unwrap().span(),
+            res.body.unwrap().span(),
             b"<html>\n<body>\n<h1>Hello, World!</h1>\n</body>\n</html>".as_slice()
         );
     }
