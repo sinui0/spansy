@@ -48,11 +48,12 @@ pub fn parse_request(src: &[u8]) -> Result<Request<'_>, ParseError> {
                 range: get_span_range(src, h.value),
             });
 
+            let header_range = name.0.range.start..value.0.range.end;
             Header {
                 span: Span {
                     src,
-                    span: &src[..body_start],
-                    range: 0..body_start,
+                    span: &src[header_range.clone()],
+                    range: header_range,
                 },
                 name,
                 value,
@@ -175,11 +176,12 @@ pub fn parse_response(src: &[u8]) -> Result<Response<'_>, ParseError> {
                 range: get_span_range(src, h.value),
             });
 
+            let header_range = name.0.range.start..value.0.range.end;
             Header {
                 span: Span {
                     src,
-                    span: &src[..body_start],
-                    range: 0..body_start,
+                    span: &src[header_range.clone()],
+                    range: header_range,
                 },
                 name,
                 value,
