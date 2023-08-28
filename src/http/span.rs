@@ -10,11 +10,11 @@ const MAX_HEADERS: usize = 128;
 pub fn parse_request(src: &[u8]) -> Result<Request<'_>, ParseError> {
     let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
 
-    let (method, path, body_start) = {
+    let (method, path, head_end) = {
         let mut request = httparse::Request::new(&mut headers);
 
-        let body_start = match request.parse(src) {
-            Ok(httparse::Status::Complete(body_start)) => body_start,
+        let head_end = match request.parse(src) {
+            Ok(httparse::Status::Complete(head_end)) => head_end,
             Ok(httparse::Status::Partial) => {
                 return Err(ParseError(format!("incomplete request: {:?}", src)))
             }
@@ -29,7 +29,7 @@ pub fn parse_request(src: &[u8]) -> Result<Request<'_>, ParseError> {
             .path
             .ok_or_else(|| ParseError("path missing from request".to_string()))?;
 
-        (method, path, body_start)
+        (method, path, head_end)
     };
 
     let headers = headers
@@ -73,7 +73,7 @@ pub fn parse_request(src: &[u8]) -> Result<Request<'_>, ParseError> {
         span: Span {
             src,
             span: src,
-            range: 0..src.len(),
+            range: 0..head_end,
         },
         method: Span {
             src,
@@ -89,24 +89,10 @@ pub fn parse_request(src: &[u8]) -> Result<Request<'_>, ParseError> {
         body: None,
     };
 
-    let body_len = if body_start == src.len() {
-        0
-    } else if let Some(h) = request.header("Content-Length") {
-        std::str::from_utf8(h.value.0.span)?
-            .parse::<usize>()
-            .map_err(|err| ParseError(format!("failed to parse Content-Length value: {err}")))?
-    } else if request.header("Transfer-Encoding").is_some() {
-        return Err(ParseError(
-            "Transfer-Encoding not supported yet".to_string(),
-        ));
-    } else {
-        return Err(ParseError(
-            "A request with a body must contain either a Content-Length or Transfer-Encoding header".to_string(),
-        ));
-    };
+    let body_len = request_body_len(&request)?;
 
     if body_len > 0 {
-        let range = body_start..body_start + body_len;
+        let range = head_end..head_end + body_len;
 
         if range.end > src.len() {
             return Err(ParseError(format!(
@@ -137,11 +123,11 @@ pub fn parse_request(src: &[u8]) -> Result<Request<'_>, ParseError> {
 pub fn parse_response(src: &[u8]) -> Result<Response<'_>, ParseError> {
     let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
 
-    let (reason, code, body_start) = {
+    let (reason, code, head_end) = {
         let mut response = httparse::Response::new(&mut headers);
 
-        let body_start = match response.parse(src) {
-            Ok(httparse::Status::Complete(body_start)) => body_start,
+        let head_end = match response.parse(src) {
+            Ok(httparse::Status::Complete(head_end)) => head_end,
             Ok(httparse::Status::Partial) => {
                 return Err(ParseError(format!("incomplete response: {:?}", src)))
             }
@@ -157,7 +143,7 @@ pub fn parse_response(src: &[u8]) -> Result<Response<'_>, ParseError> {
             .reason
             .ok_or_else(|| ParseError("reason missing from response".to_string()))?;
 
-        (reason, code, body_start)
+        (reason, code, head_end)
     };
 
     let headers = headers
@@ -199,7 +185,7 @@ pub fn parse_response(src: &[u8]) -> Result<Response<'_>, ParseError> {
         span: Span {
             src,
             span: src,
-            range: 0..src.len(),
+            range: 0..head_end,
         },
         code: Span {
             src,
@@ -215,24 +201,10 @@ pub fn parse_response(src: &[u8]) -> Result<Response<'_>, ParseError> {
         body: None,
     };
 
-    let body_len = if body_start == src.len() {
-        0
-    } else if let Some(h) = response.header("Content-Length") {
-        std::str::from_utf8(h.value.0.span)?
-            .parse::<usize>()
-            .map_err(|err| ParseError(format!("failed to parse Content-Length value: {err}")))?
-    } else if response.header("Transfer-Encoding").is_some() {
-        return Err(ParseError(
-            "Transfer-Encoding not supported yet".to_string(),
-        ));
-    } else {
-        return Err(ParseError(
-            "A response with a body must contain either a Content-Length or Transfer-Encoding header".to_string(),
-        ));
-    };
+    let body_len = response_body_len(&response)?;
 
     if body_len > 0 {
-        let range = body_start..body_start + body_len;
+        let range = head_end..head_end + body_len;
 
         if range.end > src.len() {
             return Err(ParseError(format!(
@@ -257,6 +229,65 @@ pub fn parse_response(src: &[u8]) -> Result<Response<'_>, ParseError> {
     }
 
     Ok(response)
+}
+
+/// Calculates the length of the request body according to RFC 9112, section 6.
+fn request_body_len(request: &Request<'_>) -> Result<usize, ParseError> {
+    // The presence of a message body in a request is signaled by a Content-Length
+    // or Transfer-Encoding header field.
+
+    // If a message is received with both a Transfer-Encoding and a Content-Length header field,
+    // the Transfer-Encoding overrides the Content-Length
+    if request.header("Transfer-Encoding").is_some() {
+        Err(ParseError(
+            "Transfer-Encoding not supported yet".to_string(),
+        ))
+    } else if let Some(h) = request.header("Content-Length") {
+        // If a valid Content-Length header field is present without Transfer-Encoding, its decimal value
+        // defines the expected message body length in octets.
+        std::str::from_utf8(h.value.0.span)?
+            .parse::<usize>()
+            .map_err(|err| ParseError(format!("failed to parse Content-Length value: {err}")))
+    } else {
+        // If this is a request message and none of the above are true, then the message body length is zero
+        Ok(0)
+    }
+}
+
+/// Calculates the length of the response body according to RFC 9112, section 6.
+fn response_body_len(response: &Response<'_>) -> Result<usize, ParseError> {
+    // Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified)
+    // status code is always terminated by the first empty line after the header fields, regardless of the header fields
+    // present in the message, and thus cannot contain a message body or trailer section.
+    match response
+        .code
+        .span
+        .parse::<usize>()
+        .expect("code is valid utf-8")
+    {
+        100..=199 | 204 | 304 => return Ok(0),
+        _ => {}
+    }
+
+    if response.header("Transfer-Encoding").is_some() {
+        Err(ParseError(
+            "Transfer-Encoding not supported yet".to_string(),
+        ))
+    } else if let Some(h) = response.header("Content-Length") {
+        // If a valid Content-Length header field is present without Transfer-Encoding, its decimal value
+        // defines the expected message body length in octets.
+        std::str::from_utf8(h.value.0.span)?
+            .parse::<usize>()
+            .map_err(|err| ParseError(format!("failed to parse Content-Length value: {err}")))
+    } else {
+        // If this is a response message and none of the above are true, then there is no way to
+        // determine the length of the message body except by reading it until the connection is closed.
+
+        // We currently consider this an error because we have no outer context information.
+        Err(ParseError(
+            "A response with a body must contain either a Content-Length or Transfer-Encoding header".to_string(),
+        ))
+    }
 }
 
 #[cfg(test)]
