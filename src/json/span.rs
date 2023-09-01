@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use pest::{iterators::Pair, Parser};
 
 use super::types::{self, JsonValue};
@@ -9,165 +10,91 @@ use crate::{ParseError, Span};
 struct JsonParser;
 
 /// Parse a JSON value from a source string.
-pub fn parse(src: &str) -> Result<JsonValue<'_>, ParseError> {
-    Ok(JsonParser::parse(Rule::json, src)?
+pub fn parse(src: &str) -> Result<JsonValue, ParseError> {
+    let src = Bytes::copy_from_slice(src.as_bytes());
+
+    // # Safety
+    // `src` was passed as a string slice, so it is guaranteed to be valid UTF-8.
+    let src_str = unsafe { std::str::from_utf8_unchecked(src.as_ref()) };
+
+    let value = JsonParser::parse(Rule::value, src_str)?
         .next()
-        .ok_or_else(|| ParseError(format!("no JSON value found in source string: {:?}", src)))?
-        .into())
+        .ok_or_else(|| ParseError("no json value is present in source".to_string()))?;
+
+    Ok(JsonValue::from_pair(src.clone(), value))
 }
 
-impl<'a> From<Pair<'a, Rule>> for types::JsonKey<'a> {
-    fn from(value: Pair<'a, Rule>) -> Self {
-        assert!(matches!(value.as_rule(), Rule::string));
+macro_rules! impl_from_pair {
+    ($ty:ty, $rule:ident) => {
+        impl $ty {
+            fn from_pair(src: Bytes, pair: Pair<'_, Rule>) -> Self {
+                assert!(matches!(pair.as_rule(), Rule::$rule));
 
-        let span = value.as_span();
-        let range = span.start()..span.end();
-
-        Self(Span {
-            src: value.get_input().as_bytes(),
-            span: value.as_str(),
-            range,
-        })
-    }
+                Self(Span::new_from_str(src, pair.as_str()))
+            }
+        }
+    };
 }
 
-impl<'a> From<Pair<'a, Rule>> for types::Number<'a> {
-    fn from(value: Pair<'a, Rule>) -> Self {
-        assert!(matches!(value.as_rule(), Rule::number));
+impl_from_pair!(types::JsonKey, string);
+impl_from_pair!(types::Number, number);
+impl_from_pair!(types::Bool, bool);
+impl_from_pair!(types::Null, null);
+impl_from_pair!(types::String, string);
 
-        let span = value.as_span();
-        let range = span.start()..span.end();
+impl types::Object {
+    fn from_pair(src: Bytes, pair: Pair<'_, Rule>) -> Self {
+        assert!(matches!(pair.as_rule(), Rule::object));
 
-        Self(Span {
-            src: value.get_input().as_bytes(),
-            span: value.as_str(),
-            range,
-        })
-    }
-}
-
-impl<'a> From<Pair<'a, Rule>> for types::Bool<'a> {
-    fn from(value: Pair<'a, Rule>) -> Self {
-        assert!(matches!(value.as_rule(), Rule::bool));
-
-        let span = value.as_span();
-        let range = span.start()..span.end();
-
-        Self(Span {
-            src: value.get_input().as_bytes(),
-            span: value.as_str(),
-            range,
-        })
-    }
-}
-
-impl<'a> From<Pair<'a, Rule>> for types::Null<'a> {
-    fn from(value: Pair<'a, Rule>) -> Self {
-        assert!(matches!(value.as_rule(), Rule::null));
-
-        let span = value.as_span();
-        let range = span.start()..span.end();
-
-        Self(Span {
-            src: value.get_input().as_bytes(),
-            span: value.as_str(),
-            range,
-        })
-    }
-}
-
-impl<'a> From<Pair<'a, Rule>> for types::String<'a> {
-    fn from(value: Pair<'a, Rule>) -> Self {
-        assert!(matches!(value.as_rule(), Rule::string));
-
-        let span = value.as_span();
-        let range = span.start()..span.end();
-
-        Self(Span {
-            src: value.get_input().as_bytes(),
-            span: value.as_str(),
-            range,
-        })
-    }
-}
-
-impl<'a> From<Pair<'a, Rule>> for types::Object<'a> {
-    fn from(value: Pair<'a, Rule>) -> Self {
-        assert!(matches!(value.as_rule(), Rule::object));
-
-        let span = value.as_span();
-        let range = span.start()..span.end();
-
-        let span = Span {
-            src: value.get_input().as_bytes(),
-            span: value.as_str(),
-            range,
-        };
-
-        types::Object {
-            span,
-            elems: value
+        Self {
+            span: Span::new_from_str(src.clone(), pair.as_str()),
+            elems: pair
                 .into_inner()
                 .map(|pair| {
-                    let types::KeyValue { key, value } = types::KeyValue::try_from(pair).unwrap();
-                    (key, value)
+                    assert!(matches!(pair.as_rule(), Rule::pair));
+
+                    let mut pairs = pair.into_inner();
+
+                    let key = pairs.next().expect("key is present");
+                    let value = pairs.next().expect("value is present");
+
+                    (
+                        types::JsonKey::from_pair(src.clone(), key),
+                        types::JsonValue::from_pair(src.clone(), value),
+                    )
                 })
                 .collect(),
         }
     }
 }
 
-impl<'a> From<Pair<'a, Rule>> for types::Array<'a> {
-    fn from(value: Pair<'a, Rule>) -> Self {
-        assert!(matches!(value.as_rule(), Rule::array));
+impl types::Array {
+    fn from_pair(src: Bytes, pair: Pair<'_, Rule>) -> Self {
+        assert!(matches!(pair.as_rule(), Rule::array));
 
-        let span = value.as_span();
-        let range = span.start()..span.end();
-
-        let span = Span {
-            src: value.get_input().as_bytes(),
-            span: value.as_str(),
-            range,
-        };
-
-        types::Array {
-            span,
-            elems: value.into_inner().map(|pair| pair.into()).collect(),
+        Self {
+            span: Span::new_from_str(src.clone(), pair.as_str()),
+            elems: pair
+                .into_inner()
+                .map(|pair| types::JsonValue::from_pair(src.clone(), pair))
+                .collect(),
         }
     }
 }
 
-impl<'a> From<Pair<'a, Rule>> for types::JsonValue<'a> {
-    fn from(value: Pair<'a, Rule>) -> Self {
-        match value.as_rule() {
-            Rule::object => JsonValue::Object(value.into()),
-            Rule::array => JsonValue::Array(value.into()),
-            Rule::string => JsonValue::String(value.into()),
-            Rule::number => JsonValue::Number(value.into()),
-            Rule::bool => JsonValue::Bool(value.into()),
-            Rule::null => JsonValue::Null(value.into()),
+impl types::JsonValue {
+    fn from_pair(src: Bytes, pair: Pair<'_, Rule>) -> Self {
+        match pair.as_rule() {
+            Rule::object => Self::Object(types::Object::from_pair(src, pair)),
+            Rule::array => Self::Array(types::Array::from_pair(src, pair)),
+            Rule::string => Self::String(types::String::from_pair(src, pair)),
+            Rule::number => Self::Number(types::Number::from_pair(src, pair)),
+            Rule::bool => Self::Bool(types::Bool::from_pair(src, pair)),
+            Rule::null => Self::Null(types::Null::from_pair(src, pair)),
             rule => unreachable!("unexpected matched rule: {:?}", rule),
         }
     }
 }
-
-impl<'a> From<Pair<'a, Rule>> for types::KeyValue<'a> {
-    fn from(value: Pair<'a, Rule>) -> Self {
-        assert!(matches!(value.as_rule(), Rule::pair));
-
-        let [key, value]: [Pair<'a, Rule>; 2] = value
-            .into_inner()
-            .collect::<Vec<_>>()
-            .try_into()
-            .expect("pair has two children");
-
-        Self {
-            key: key.into(),
-            value: value.into(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::Spanned;
