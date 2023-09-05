@@ -4,24 +4,24 @@ use crate::{Span, Spanned};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A JSON value.
-pub enum JsonValue<'a> {
+pub enum JsonValue {
     /// A null value.
-    Null(Null<'a>),
+    Null(Null),
     /// A boolean value.
-    Bool(Bool<'a>),
+    Bool(Bool),
     /// A number value.
-    Number(Number<'a>),
+    Number(Number),
     /// A string value.
-    String(String<'a>),
+    String(String),
     /// An array value.
-    Array(Array<'a>),
+    Array(Array),
     /// An object value.
-    Object(Object<'a>),
+    Object(Object),
 }
 
-impl<'a> JsonValue<'a> {
+impl JsonValue {
     /// Returns the span corresponding to the value.
-    pub fn into_span(self) -> Span<'a, str> {
+    pub fn into_span(self) -> Span<str> {
         match self {
             JsonValue::Null(v) => v.0,
             JsonValue::Bool(v) => v.0,
@@ -33,8 +33,8 @@ impl<'a> JsonValue<'a> {
     }
 }
 
-impl Spanned<str> for JsonValue<'_> {
-    fn span(&self) -> &Span<'_, str> {
+impl Spanned<str> for JsonValue {
+    fn span(&self) -> &Span<str> {
         match self {
             JsonValue::Null(v) => v.span(),
             JsonValue::Bool(v) => v.span(),
@@ -46,7 +46,7 @@ impl Spanned<str> for JsonValue<'_> {
     }
 }
 
-impl<'a> JsonValue<'a> {
+impl JsonValue {
     /// Get a reference to the value using the given path.
     ///
     /// # Example
@@ -61,7 +61,7 @@ impl<'a> JsonValue<'a> {
     ///
     /// assert_eq!(value.get("foo.bar.1").unwrap().span(), "14");
     /// ```
-    pub fn get(&self, path: &str) -> Option<&JsonValue<'a>> {
+    pub fn get(&self, path: &str) -> Option<&JsonValue> {
         match self {
             JsonValue::Null(_) => None,
             JsonValue::Bool(_) => None,
@@ -74,50 +74,50 @@ impl<'a> JsonValue<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct KeyValue<'a> {
-    pub(crate) key: JsonKey<'a>,
-    pub(crate) value: JsonValue<'a>,
+pub(crate) struct KeyValue {
+    pub(crate) key: JsonKey,
+    pub(crate) value: JsonValue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A key in a JSON object.
-pub struct JsonKey<'a>(pub(crate) Span<'a, str>);
+pub struct JsonKey(pub(crate) Span<str>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A null value.
-pub struct Null<'a>(pub(crate) Span<'a, str>);
+pub struct Null(pub(crate) Span<str>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A boolean value.
-pub struct Bool<'a>(pub(crate) Span<'a, str>);
+pub struct Bool(pub(crate) Span<str>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A number value.
-pub struct Number<'a>(pub(crate) Span<'a, str>);
+pub struct Number(pub(crate) Span<str>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A string value.
-pub struct String<'a>(pub(crate) Span<'a, str>);
+pub struct String(pub(crate) Span<str>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// An array value.
-pub struct Array<'a> {
-    pub(crate) span: Span<'a, str>,
+pub struct Array {
+    pub(crate) span: Span<str>,
     /// The elements of the array.
-    pub elems: Vec<JsonValue<'a>>,
+    pub elems: Vec<JsonValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// An object value.
-pub struct Object<'a> {
-    pub(crate) span: Span<'a, str>,
+pub struct Object {
+    pub(crate) span: Span<str>,
     /// The key value pairs of the object.
-    pub elems: Vec<(JsonKey<'a>, JsonValue<'a>)>,
+    pub elems: Vec<(JsonKey, JsonValue)>,
 }
 
-impl<'a> Array<'a> {
+impl Array {
     /// Get a reference to the value using the given path.
-    pub fn get(&self, path: &str) -> Option<&JsonValue<'a>> {
+    pub fn get(&self, path: &str) -> Option<&JsonValue> {
         let mut path_iter = path.split('.');
 
         let key = path_iter.next()?;
@@ -133,9 +133,9 @@ impl<'a> Array<'a> {
     }
 }
 
-impl<'a> Object<'a> {
+impl Object {
     /// Get a reference to the value using the given path.
-    fn get(&self, path: &str) -> Option<&JsonValue<'a>> {
+    fn get(&self, path: &str) -> Option<&JsonValue> {
         let mut path_iter = path.split('.');
 
         let key = path_iter.next()?;
@@ -152,63 +152,63 @@ impl<'a> Object<'a> {
 
 macro_rules! impl_type {
     ($ty:ident, $span:tt) => {
-        impl<'a> $ty<'a> {
+        impl $ty {
             /// Returns the span corresponding to the value.
-            pub fn into_span(self) -> Span<'a, str> {
+            pub fn into_span(self) -> Span<str> {
                 self.$span
             }
         }
 
-        impl Spanned<str> for $ty<'_> {
-            fn span(&self) -> &Span<'_, str> {
+        impl Spanned<str> for $ty {
+            fn span(&self) -> &Span<str> {
                 &self.$span
             }
         }
 
-        impl PartialEq<str> for $ty<'_> {
+        impl PartialEq<str> for $ty {
             fn eq(&self, other: &str) -> bool {
                 self.$span == other
             }
         }
 
-        impl PartialEq<$ty<'_>> for str {
-            fn eq(&self, other: &$ty<'_>) -> bool {
+        impl PartialEq<$ty> for str {
+            fn eq(&self, other: &$ty) -> bool {
                 self == &other.$span
             }
         }
 
-        impl PartialEq<&str> for $ty<'_> {
+        impl PartialEq<&str> for $ty {
             fn eq(&self, other: &&str) -> bool {
                 self.$span == *other
             }
         }
 
-        impl PartialEq<$ty<'_>> for &str {
-            fn eq(&self, other: &$ty<'_>) -> bool {
+        impl PartialEq<$ty> for &str {
+            fn eq(&self, other: &$ty) -> bool {
                 *self == &other.$span
             }
         }
 
-        impl PartialEq<Range<usize>> for $ty<'_> {
+        impl PartialEq<Range<usize>> for $ty {
             fn eq(&self, other: &Range<usize>) -> bool {
                 &self.$span == other
             }
         }
 
-        impl PartialEq<$ty<'_>> for Range<usize> {
-            fn eq(&self, other: &$ty<'_>) -> bool {
+        impl PartialEq<$ty> for Range<usize> {
+            fn eq(&self, other: &$ty) -> bool {
                 self == &other.$span
             }
         }
 
-        impl PartialEq<Span<'_, str>> for $ty<'_> {
-            fn eq(&self, other: &Span<'_, str>) -> bool {
+        impl PartialEq<Span<str>> for $ty {
+            fn eq(&self, other: &Span<str>) -> bool {
                 &self.$span == other
             }
         }
 
-        impl PartialEq<$ty<'_>> for Span<'_, str> {
-            fn eq(&self, other: &$ty<'_>) -> bool {
+        impl PartialEq<$ty> for Span<str> {
+            fn eq(&self, other: &$ty) -> bool {
                 self == &other.$span
             }
         }

@@ -3,7 +3,9 @@
 #![deny(missing_docs, unreachable_pub, unused_must_use)]
 #![deny(clippy::all)]
 
-use std::{fmt::Debug, ops::Range};
+use std::{fmt::Debug, marker::PhantomData, ops::Range};
+
+use bytes::Bytes;
 
 pub(crate) mod helpers;
 pub mod http;
@@ -29,50 +31,59 @@ impl From<std::str::Utf8Error> for ParseError {
 /// A spanned value.
 pub trait Spanned<T: ?Sized = [u8]> {
     /// Get a reference to the span of the value.
-    fn span(&self) -> &Span<'_, T>;
+    fn span(&self) -> &Span<T>;
 }
 
 /// A span of a source string.
 #[derive(PartialEq, Eq)]
-pub struct Span<'a, T: ?Sized = [u8]> {
-    pub(crate) src: &'a [u8],
-    pub(crate) span: &'a T,
+pub struct Span<T: ?Sized = [u8]> {
+    pub(crate) src: Bytes,
     pub(crate) range: Range<usize>,
+    _pd: PhantomData<T>,
 }
 
-impl<T: Debug + ?Sized> Debug for Span<'_, T> {
+impl Clone for Span<[u8]> {
+    fn clone(&self) -> Self {
+        Self {
+            src: self.src.clone(),
+            range: self.range.clone(),
+            _pd: PhantomData,
+        }
+    }
+}
+
+impl Clone for Span<str> {
+    fn clone(&self) -> Self {
+        Self {
+            src: self.src.clone(),
+            range: self.range.clone(),
+            _pd: PhantomData,
+        }
+    }
+}
+
+impl Debug for Span<[u8]> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Span")
-            .field("span", &self.span)
+            .field("span", &self.as_bytes())
             .field("range", &self.range)
             .finish()
     }
 }
 
-impl Clone for Span<'_, str> {
-    fn clone(&self) -> Self {
-        Self {
-            src: self.src,
-            span: self.span,
-            range: self.range.clone(),
-        }
+impl Debug for Span<str> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Span")
+            .field("span", &self.as_str())
+            .field("range", &self.range)
+            .finish()
     }
 }
 
-impl Clone for Span<'_, [u8]> {
-    fn clone(&self) -> Self {
-        Self {
-            src: self.src,
-            span: self.span,
-            range: self.range.clone(),
-        }
-    }
-}
-
-impl<'a, T: ?Sized> Span<'a, T> {
-    /// Returns a reference to the source string.
+impl<T: ?Sized> Span<T> {
+    /// Returns a reference to the source bytes.
     pub fn src(&self) -> &[u8] {
-        self.src
+        self.src.as_ref()
     }
 
     /// Returns the corresponding range within the source string.
@@ -91,127 +102,185 @@ impl<'a, T: ?Sized> Span<'a, T> {
     pub fn is_empty(&self) -> bool {
         self.range.is_empty()
     }
+}
 
-    /// Offset the span ranges by the given number of bytes.
+impl Span<str> {
+    /// Create a new string span.
     ///
-    /// This is useful when the source string is a substring of a larger string.
-    pub fn offset(&mut self, offset: usize) {
-        self.range.start += offset;
-        self.range.end += offset;
-    }
-}
-
-impl<'a> Span<'a, str> {
-    /// Returns a reference to the string span.
-    pub fn span(&self) -> &str {
-        self.span
-    }
-
-    /// Returns the corresponding byte span.
-    pub fn to_byte_span(&self) -> Span<'a, [u8]> {
-        self.clone().into()
-    }
-}
-
-impl AsRef<str> for Span<'_, str> {
-    fn as_ref(&self) -> &str {
-        self.span
-    }
-}
-
-impl<'a> Span<'a, [u8]> {
-    /// Returns a reference to the byte span.
-    pub fn span(&self) -> &[u8] {
-        self.span
-    }
-}
-
-impl AsRef<[u8]> for Span<'_, [u8]> {
-    fn as_ref(&self) -> &[u8] {
-        self.span
-    }
-}
-
-impl<'a> From<Span<'a, str>> for Span<'a, [u8]> {
-    fn from(span: Span<'a, str>) -> Self {
-        let Span { src, span, range } = span;
+    /// # Panics
+    ///
+    /// Panics if the given range is not within the source bytes, or
+    /// if the span is not a valid UTF-8 string.
+    pub(crate) fn new_str(src: Bytes, range: Range<usize>) -> Self {
+        assert!(
+            std::str::from_utf8(&src[range.clone()]).is_ok(),
+            "span is not a valid UTF-8 string"
+        );
 
         Self {
             src,
-            span: span.as_bytes(),
             range,
+            _pd: PhantomData,
+        }
+    }
+
+    /// Create a new string span from a string slice.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the given slice is not within the source bytes.
+    pub(crate) fn new_from_str(src: Bytes, span: &str) -> Self {
+        let range = helpers::get_span_range(src.as_ref(), span.as_bytes());
+
+        Self {
+            src,
+            range,
+            _pd: PhantomData,
+        }
+    }
+
+    /// Converts this type to a string slice.
+    pub fn as_str(&self) -> &str {
+        self.as_ref()
+    }
+
+    /// Returns the corresponding byte span.
+    pub fn to_byte_span(&self) -> Span<[u8]> {
+        self.into()
+    }
+}
+
+impl AsRef<str> for Span<str> {
+    fn as_ref(&self) -> &str {
+        // # Safety
+        // The span is guaranteed to be a valid UTF-8 string because it is not
+        // possible to create a `Span<str>` from a non-UTF-8 string.
+        unsafe { std::str::from_utf8_unchecked(&self.src[self.range.clone()]) }
+    }
+}
+
+impl AsRef<[u8]> for Span<str> {
+    fn as_ref(&self) -> &[u8] {
+        self.src[self.range.clone()].as_ref()
+    }
+}
+
+impl Span<[u8]> {
+    /// Create a new byte span.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the given range is not within the source bytes.
+    pub(crate) fn new_bytes(src: Bytes, range: Range<usize>) -> Self {
+        assert!(src.len() >= range.end, "span is not within source bytes");
+
+        Self {
+            src,
+            range,
+            _pd: PhantomData,
+        }
+    }
+
+    /// Converts this type to a byte slice.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.as_ref()
+    }
+}
+
+impl AsRef<[u8]> for Span<[u8]> {
+    fn as_ref(&self) -> &[u8] {
+        self.src[self.range.clone()].as_ref()
+    }
+}
+
+impl From<Span<str>> for Span<[u8]> {
+    fn from(span: Span<str>) -> Self {
+        Self {
+            src: span.src,
+            range: span.range,
+            _pd: PhantomData,
         }
     }
 }
 
-impl PartialEq<Span<'_>> for [u8] {
-    fn eq(&self, other: &Span<'_>) -> bool {
-        self == other.span
+impl From<&Span<str>> for Span<[u8]> {
+    fn from(span: &Span<str>) -> Self {
+        Self {
+            src: span.src.clone(),
+            range: span.range.clone(),
+            _pd: PhantomData,
+        }
     }
 }
 
-impl PartialEq<[u8]> for Span<'_> {
+impl PartialEq<Span> for [u8] {
+    fn eq(&self, other: &Span) -> bool {
+        self == other.as_ref()
+    }
+}
+
+impl PartialEq<[u8]> for Span {
     fn eq(&self, other: &[u8]) -> bool {
-        self.span == other
+        self.as_ref() == other
     }
 }
 
-impl PartialEq<&[u8]> for Span<'_> {
+impl PartialEq<&[u8]> for Span {
     fn eq(&self, other: &&[u8]) -> bool {
-        self.span == *other
+        self.as_ref() == *other
     }
 }
 
-impl PartialEq<[u8]> for &Span<'_> {
+impl PartialEq<[u8]> for &Span {
     fn eq(&self, other: &[u8]) -> bool {
-        self.span == other
+        self.as_ref() == other
     }
 }
 
-impl PartialEq<Span<'_, str>> for str {
-    fn eq(&self, other: &Span<'_, str>) -> bool {
-        self == other.span
+impl PartialEq<Span<str>> for str {
+    fn eq(&self, other: &Span<str>) -> bool {
+        self == other.as_str()
     }
 }
 
-impl PartialEq<str> for Span<'_, str> {
+impl PartialEq<str> for Span<str> {
     fn eq(&self, other: &str) -> bool {
-        self.span == other
+        self.as_str() == other
     }
 }
 
-impl PartialEq<&str> for Span<'_, str> {
+impl PartialEq<&str> for Span<str> {
     fn eq(&self, other: &&str) -> bool {
-        self.span == *other
+        self.as_str() == *other
     }
 }
 
-impl PartialEq<str> for &Span<'_, str> {
+impl PartialEq<str> for &Span<str> {
     fn eq(&self, other: &str) -> bool {
-        self.span == other
+        self.as_str() == other
     }
 }
 
-impl PartialEq<Range<usize>> for Span<'_, str> {
+impl PartialEq<Range<usize>> for Span<str> {
     fn eq(&self, other: &Range<usize>) -> bool {
         &self.range == other
     }
 }
 
-impl<T: ?Sized> PartialEq<Span<'_, T>> for Range<usize> {
-    fn eq(&self, other: &Span<'_, T>) -> bool {
+impl<T: ?Sized> PartialEq<Span<T>> for Range<usize> {
+    fn eq(&self, other: &Span<T>) -> bool {
         self == &other.range
     }
 }
 
-impl<T: ?Sized> PartialEq<Range<usize>> for &Span<'_, T> {
+impl<T: ?Sized> PartialEq<Range<usize>> for &Span<T> {
     fn eq(&self, other: &Range<usize>) -> bool {
         &self.range == other
     }
 }
 
-impl<T: ?Sized> PartialEq<Span<'_, T>> for &Range<usize> {
-    fn eq(&self, other: &Span<'_, T>) -> bool {
+impl<T: ?Sized> PartialEq<Span<T>> for &Range<usize> {
+    fn eq(&self, other: &Span<T>) -> bool {
         **self == other.range
     }
 }

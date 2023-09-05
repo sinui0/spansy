@@ -3,34 +3,41 @@
 mod span;
 mod types;
 
+use bytes::Bytes;
+
 pub use span::{parse_request, parse_response};
 pub use types::{Body, Header, HeaderName, HeaderValue, Request, Response};
 
 use crate::ParseError;
+
+use self::span::{parse_request_from_bytes, parse_response_from_bytes};
 /// An iterator yielding parsed HTTP requests.
 #[derive(Debug)]
-pub struct Requests<'a> {
-    src: &'a [u8],
+pub struct Requests {
+    src: Bytes,
     /// The current position in the source string.
     pos: usize,
 }
 
-impl<'a> Requests<'a> {
+impl Requests {
     /// Returns a new `Requests` iterator.
-    pub fn new(src: &'a [u8]) -> Self {
-        Self { src, pos: 0 }
+    pub fn new(src: &[u8]) -> Self {
+        Self {
+            src: Bytes::copy_from_slice(src),
+            pos: 0,
+        }
     }
 }
 
-impl<'a> Iterator for Requests<'a> {
-    type Item = Result<Request<'a>, ParseError>;
+impl Iterator for Requests {
+    type Item = Result<Request, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos >= self.src.len() {
             None
         } else {
-            Some(parse_request(&self.src[self.pos..]).map(|req| {
-                self.pos += req.span.range.end;
+            Some(parse_request_from_bytes(&self.src, self.pos).map(|req| {
+                self.pos += req.span.len();
                 req
             }))
         }
@@ -39,28 +46,31 @@ impl<'a> Iterator for Requests<'a> {
 
 /// An iterator yielding parsed HTTP responses.
 #[derive(Debug)]
-pub struct Responses<'a> {
-    src: &'a [u8],
+pub struct Responses {
+    src: Bytes,
     /// The current position in the source string.
     pos: usize,
 }
 
-impl<'a> Responses<'a> {
+impl Responses {
     /// Returns a new `Responses` iterator.
-    pub fn new(src: &'a [u8]) -> Self {
-        Self { src, pos: 0 }
+    pub fn new(src: &[u8]) -> Self {
+        Self {
+            src: Bytes::copy_from_slice(src),
+            pos: 0,
+        }
     }
 }
 
-impl<'a> Iterator for Responses<'a> {
-    type Item = Result<Response<'a>, ParseError>;
+impl Iterator for Responses {
+    type Item = Result<Response, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos >= self.src.len() {
             None
         } else {
-            Some(parse_response(&self.src[self.pos..]).map(|resp| {
-                self.pos += resp.span.range.end;
+            Some(parse_response_from_bytes(&self.src, self.pos).map(|resp| {
+                self.pos += resp.span.len();
                 resp
             }))
         }

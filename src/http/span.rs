@@ -1,3 +1,5 @@
+use bytes::Bytes;
+
 use crate::{
     helpers::get_span_range,
     http::types::{Body, Header, HeaderName, HeaderValue, Request, Response},
@@ -7,14 +9,19 @@ use crate::{
 const MAX_HEADERS: usize = 128;
 
 /// Parses an HTTP request.
-pub fn parse_request(src: &[u8]) -> Result<Request<'_>, ParseError> {
+pub fn parse_request(src: &[u8]) -> Result<Request, ParseError> {
+    parse_request_from_bytes(&Bytes::copy_from_slice(src), 0)
+}
+
+/// Parses an HTTP request from a `Bytes` buffer.
+pub(crate) fn parse_request_from_bytes(src: &Bytes, offset: usize) -> Result<Request, ParseError> {
     let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
 
     let (method, path, head_end) = {
         let mut request = httparse::Request::new(&mut headers);
 
-        let head_end = match request.parse(src) {
-            Ok(httparse::Status::Complete(head_end)) => head_end,
+        let head_end = match request.parse(&src[offset..]) {
+            Ok(httparse::Status::Complete(head_end)) => head_end + offset,
             Ok(httparse::Status::Partial) => {
                 return Err(ParseError(format!("incomplete request: {:?}", src)))
             }
@@ -36,25 +43,16 @@ pub fn parse_request(src: &[u8]) -> Result<Request<'_>, ParseError> {
         .iter()
         .take_while(|h| *h != &httparse::EMPTY_HEADER)
         .map(|h| {
-            let name = HeaderName(Span {
-                src,
-                span: h.name,
-                range: get_span_range(src, h.name.as_bytes()),
-            });
+            let name = HeaderName(Span::new_str(
+                src.clone(),
+                get_span_range(src, h.name.as_bytes()),
+            ));
 
-            let value = HeaderValue(Span {
-                src,
-                span: h.value,
-                range: get_span_range(src, h.value),
-            });
+            let value = HeaderValue(Span::new_bytes(src.clone(), get_span_range(src, h.value)));
 
             let header_range = name.0.range.start..value.0.range.end;
             Header {
-                span: Span {
-                    src,
-                    span: &src[header_range.clone()],
-                    range: header_range,
-                },
+                span: Span::new_bytes(src.clone(), header_range),
                 name,
                 value,
             }
@@ -70,21 +68,9 @@ pub fn parse_request(src: &[u8]) -> Result<Request<'_>, ParseError> {
         .expect("method is present");
 
     let mut request = Request {
-        span: Span {
-            src,
-            span: src,
-            range: 0..head_end,
-        },
-        method: Span {
-            src,
-            span: std::str::from_utf8(method).expect("method is valid utf-8"),
-            range: get_span_range(src, method),
-        },
-        path: Span {
-            src,
-            span: path,
-            range: get_span_range(src, path.as_bytes()),
-        },
+        span: Span::new_bytes(src.clone(), offset..head_end),
+        method: Span::new_str(src.clone(), get_span_range(src, method)),
+        path: Span::new_from_str(src.clone(), path),
         headers,
         body: None,
     };
@@ -103,31 +89,31 @@ pub fn parse_request(src: &[u8]) -> Result<Request<'_>, ParseError> {
             )));
         }
 
-        request.span = Span {
-            src,
-            span: &src[..range.end],
-            range: 0..range.end,
-        };
+        request.span = Span::new_bytes(src.clone(), offset..range.end);
 
-        request.body = Some(Body(Span {
-            src,
-            span: &src[range.clone()],
-            range,
-        }));
+        request.body = Some(Body(Span::new_bytes(src.clone(), range)));
     }
 
     Ok(request)
 }
 
 /// Parses an HTTP response.
-pub fn parse_response(src: &[u8]) -> Result<Response<'_>, ParseError> {
+pub fn parse_response(src: &[u8]) -> Result<Response, ParseError> {
+    parse_response_from_bytes(&Bytes::copy_from_slice(src), 0)
+}
+
+/// Parses an HTTP response from a `Bytes` buffer.
+pub(crate) fn parse_response_from_bytes(
+    src: &Bytes,
+    offset: usize,
+) -> Result<Response, ParseError> {
     let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
 
     let (reason, code, head_end) = {
         let mut response = httparse::Response::new(&mut headers);
 
-        let head_end = match response.parse(src) {
-            Ok(httparse::Status::Complete(head_end)) => head_end,
+        let head_end = match response.parse(&src[offset..]) {
+            Ok(httparse::Status::Complete(head_end)) => head_end + offset,
             Ok(httparse::Status::Partial) => {
                 return Err(ParseError(format!("incomplete response: {:?}", src)))
             }
@@ -150,25 +136,16 @@ pub fn parse_response(src: &[u8]) -> Result<Response<'_>, ParseError> {
         .iter()
         .take_while(|h| *h != &httparse::EMPTY_HEADER)
         .map(|h| {
-            let name = HeaderName(Span {
-                src,
-                span: h.name,
-                range: get_span_range(src, h.name.as_bytes()),
-            });
+            let name = HeaderName(Span::new_str(
+                src.clone(),
+                get_span_range(src, h.name.as_bytes()),
+            ));
 
-            let value = HeaderValue(Span {
-                src,
-                span: h.value,
-                range: get_span_range(src, h.value),
-            });
+            let value = HeaderValue(Span::new_bytes(src.clone(), get_span_range(src, h.value)));
 
             let header_range = name.0.range.start..value.0.range.end;
             Header {
-                span: Span {
-                    src,
-                    span: &src[header_range.clone()],
-                    range: header_range,
-                },
+                span: Span::new_bytes(src.clone(), header_range),
                 name,
                 value,
             }
@@ -176,27 +153,15 @@ pub fn parse_response(src: &[u8]) -> Result<Response<'_>, ParseError> {
         .collect();
 
     // httparse doesn't preserve the response code span, so we find it.
-    let code = src
+    let code = src[offset..]
         .windows(3)
         .find(|w| *w == code.as_bytes())
         .expect("code is present");
 
     let mut response = Response {
-        span: Span {
-            src,
-            span: src,
-            range: 0..head_end,
-        },
-        code: Span {
-            src,
-            span: std::str::from_utf8(code).expect("code is valid utf-8"),
-            range: get_span_range(src, code),
-        },
-        reason: Span {
-            src,
-            span: reason,
-            range: get_span_range(src, reason.as_bytes()),
-        },
+        span: Span::new_bytes(src.clone(), offset..head_end),
+        code: Span::new_str(src.clone(), get_span_range(src, code)),
+        reason: Span::new_str(src.clone(), get_span_range(src, reason.as_bytes())),
         headers,
         body: None,
     };
@@ -215,24 +180,16 @@ pub fn parse_response(src: &[u8]) -> Result<Response<'_>, ParseError> {
             )));
         }
 
-        response.span = Span {
-            src,
-            span: &src[..range.end],
-            range: 0..range.end,
-        };
+        response.span = Span::new_bytes(src.clone(), offset..range.end);
 
-        response.body = Some(Body(Span {
-            src,
-            span: &src[range.clone()],
-            range,
-        }));
+        response.body = Some(Body(Span::new_bytes(src.clone(), range)));
     }
 
     Ok(response)
 }
 
 /// Calculates the length of the request body according to RFC 9112, section 6.
-fn request_body_len(request: &Request<'_>) -> Result<usize, ParseError> {
+fn request_body_len(request: &Request) -> Result<usize, ParseError> {
     // The presence of a message body in a request is signaled by a Content-Length
     // or Transfer-Encoding header field.
 
@@ -245,7 +202,7 @@ fn request_body_len(request: &Request<'_>) -> Result<usize, ParseError> {
     } else if let Some(h) = request.header("Content-Length") {
         // If a valid Content-Length header field is present without Transfer-Encoding, its decimal value
         // defines the expected message body length in octets.
-        std::str::from_utf8(h.value.0.span)?
+        std::str::from_utf8(h.value.0.as_bytes())?
             .parse::<usize>()
             .map_err(|err| ParseError(format!("failed to parse Content-Length value: {err}")))
     } else {
@@ -255,13 +212,13 @@ fn request_body_len(request: &Request<'_>) -> Result<usize, ParseError> {
 }
 
 /// Calculates the length of the response body according to RFC 9112, section 6.
-fn response_body_len(response: &Response<'_>) -> Result<usize, ParseError> {
+fn response_body_len(response: &Response) -> Result<usize, ParseError> {
     // Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified)
     // status code is always terminated by the first empty line after the header fields, regardless of the header fields
     // present in the message, and thus cannot contain a message body or trailer section.
     match response
         .code
-        .span
+        .as_str()
         .parse::<usize>()
         .expect("code is valid utf-8")
     {
@@ -276,7 +233,7 @@ fn response_body_len(response: &Response<'_>) -> Result<usize, ParseError> {
     } else if let Some(h) = response.header("Content-Length") {
         // If a valid Content-Length header field is present without Transfer-Encoding, its decimal value
         // defines the expected message body length in octets.
-        std::str::from_utf8(h.value.0.span)?
+        std::str::from_utf8(h.value.0.as_bytes())?
             .parse::<usize>()
             .map_err(|err| ParseError(format!("failed to parse Content-Length value: {err}")))
     } else {
