@@ -21,7 +21,12 @@ pub struct Requests {
 
 impl Requests {
     /// Returns a new `Requests` iterator.
-    pub fn new(src: &[u8]) -> Self {
+    pub fn new(src: Bytes) -> Self {
+        Self { src, pos: 0 }
+    }
+
+    /// Returns a new `Requests` iterator.
+    pub fn new_from_slice(src: &[u8]) -> Self {
         Self {
             src: Bytes::copy_from_slice(src),
             pos: 0,
@@ -54,7 +59,12 @@ pub struct Responses {
 
 impl Responses {
     /// Returns a new `Responses` iterator.
-    pub fn new(src: &[u8]) -> Self {
+    pub fn new(src: Bytes) -> Self {
+        Self { src, pos: 0 }
+    }
+
+    /// Returns a new `Responses` iterator.
+    pub fn new_from_slice(src: &[u8]) -> Self {
         Self {
             src: Bytes::copy_from_slice(src),
             pos: 0,
@@ -93,7 +103,7 @@ mod tests {
 
     #[test]
     fn test_parse_requests() {
-        let reqs = Requests::new(MULTIPLE_REQUESTS)
+        let reqs = Requests::new_from_slice(MULTIPLE_REQUESTS)
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
 
@@ -110,7 +120,7 @@ mod tests {
 
     #[test]
     fn test_parse_responses() {
-        let resps = Responses::new(MULTIPLE_RESPONSES)
+        let resps = Responses::new_from_slice(MULTIPLE_RESPONSES)
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
 
