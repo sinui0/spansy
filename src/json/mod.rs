@@ -29,6 +29,6 @@ mod span;
 mod types;
 mod visit;
 
-pub use span::parse;
+pub use span::{parse, parse_slice, parse_str};
 pub use types::{Array, Bool, JsonKey, JsonValue, Null, Number, Object, String};
 pub use visit::JsonVisit;

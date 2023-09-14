@@ -10,12 +10,29 @@ use crate::{ParseError, Span};
 struct JsonParser;
 
 /// Parse a JSON value from a source string.
-pub fn parse(src: &str) -> Result<JsonValue, ParseError> {
+pub fn parse_str(src: &str) -> Result<JsonValue, ParseError> {
     let src = Bytes::copy_from_slice(src.as_bytes());
 
     // # Safety
     // `src` was passed as a string slice, so it is guaranteed to be valid UTF-8.
     let src_str = unsafe { std::str::from_utf8_unchecked(src.as_ref()) };
+
+    let value = JsonParser::parse(Rule::value, src_str)?
+        .next()
+        .ok_or_else(|| ParseError("no json value is present in source".to_string()))?;
+
+    Ok(JsonValue::from_pair(src.clone(), value))
+}
+
+/// Parse a JSON value from a byte slice.
+pub fn parse_slice(src: &[u8]) -> Result<JsonValue, ParseError> {
+    let src = Bytes::copy_from_slice(src);
+    parse(src)
+}
+
+/// Parse a JSON value from source bytes.
+pub fn parse(src: Bytes) -> Result<JsonValue, ParseError> {
+    let src_str = std::str::from_utf8(&src)?;
 
     let value = JsonParser::parse(Rule::value, src_str)?
         .next()
@@ -105,7 +122,7 @@ mod tests {
     fn test_json_spanner() {
         let src = r#"{"foo": "bar", "baz": 123, "quux": { "a": "b", "c": "d" }, "arr": [1, 2, 3]}"#;
 
-        let value = parse(src).unwrap();
+        let value = parse_str(src).unwrap();
 
         assert_eq!(value.get("foo").unwrap().span(), "bar");
         assert_eq!(value.get("baz").unwrap().span(), "123");
