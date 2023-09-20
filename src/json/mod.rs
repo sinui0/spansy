@@ -14,7 +14,7 @@
 //!
 //! let src = "{\"foo\": {\"bar\": [42, 14]}}";
 //!
-//! let value = json::parse(src).unwrap();
+//! let value = json::parse_str(src).unwrap();
 //!
 //! // We can assert that the value present at the path "foo.bar.1" is the number 14.
 //! assert_eq!(value.get("foo.bar.1").unwrap().span(), "14");

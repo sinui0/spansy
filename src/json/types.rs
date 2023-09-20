@@ -52,12 +52,12 @@ impl JsonValue {
     /// # Example
     ///
     /// ```
-    /// use spansy::json::parse;
+    /// use spansy::json::parse_str;
     /// use spansy::Spanned;
     ///
     /// let src = "{\"foo\": {\"bar\": [42, 14]}}";
     ///
-    /// let value = parse(src).unwrap();
+    /// let value = parse_str(src).unwrap();
     ///
     /// assert_eq!(value.get("foo.bar.1").unwrap().span(), "14");
     /// ```

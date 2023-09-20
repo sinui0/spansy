@@ -37,7 +37,7 @@ pub trait Spanned<T: ?Sized = [u8]> {
 /// A span of a source string.
 #[derive(PartialEq, Eq)]
 pub struct Span<T: ?Sized = [u8]> {
-    pub(crate) src: Bytes,
+    pub(crate) data: Bytes,
     pub(crate) range: Range<usize>,
     _pd: PhantomData<T>,
 }
@@ -45,7 +45,7 @@ pub struct Span<T: ?Sized = [u8]> {
 impl Clone for Span<[u8]> {
     fn clone(&self) -> Self {
         Self {
-            src: self.src.clone(),
+            data: self.data.clone(),
             range: self.range.clone(),
             _pd: PhantomData,
         }
@@ -55,7 +55,7 @@ impl Clone for Span<[u8]> {
 impl Clone for Span<str> {
     fn clone(&self) -> Self {
         Self {
-            src: self.src.clone(),
+            data: self.data.clone(),
             range: self.range.clone(),
             _pd: PhantomData,
         }
@@ -83,7 +83,7 @@ impl Debug for Span<str> {
 impl<T: ?Sized> Span<T> {
     /// Returns a reference to the source bytes.
     pub fn src(&self) -> &[u8] {
-        self.src.as_ref()
+        self.data.as_ref()
     }
 
     /// Returns the corresponding range within the source string.
@@ -118,7 +118,7 @@ impl Span<str> {
         );
 
         Self {
-            src,
+            data: src.slice(range.clone()),
             range,
             _pd: PhantomData,
         }
@@ -133,7 +133,7 @@ impl Span<str> {
         let range = helpers::get_span_range(src.as_ref(), span.as_bytes());
 
         Self {
-            src,
+            data: src.slice(range.clone()),
             range,
             _pd: PhantomData,
         }
@@ -155,13 +155,13 @@ impl AsRef<str> for Span<str> {
         // # Safety
         // The span is guaranteed to be a valid UTF-8 string because it is not
         // possible to create a `Span<str>` from a non-UTF-8 string.
-        unsafe { std::str::from_utf8_unchecked(&self.src[self.range.clone()]) }
+        unsafe { std::str::from_utf8_unchecked(&self.data) }
     }
 }
 
 impl AsRef<[u8]> for Span<str> {
     fn as_ref(&self) -> &[u8] {
-        self.src[self.range.clone()].as_ref()
+        self.data.as_ref()
     }
 }
 
@@ -175,7 +175,7 @@ impl Span<[u8]> {
         assert!(src.len() >= range.end, "span is not within source bytes");
 
         Self {
-            src,
+            data: src.slice(range.clone()),
             range,
             _pd: PhantomData,
         }
@@ -189,14 +189,14 @@ impl Span<[u8]> {
 
 impl AsRef<[u8]> for Span<[u8]> {
     fn as_ref(&self) -> &[u8] {
-        self.src[self.range.clone()].as_ref()
+        self.data.as_ref()
     }
 }
 
 impl From<Span<str>> for Span<[u8]> {
     fn from(span: Span<str>) -> Self {
         Self {
-            src: span.src,
+            data: span.data,
             range: span.range,
             _pd: PhantomData,
         }
@@ -206,7 +206,7 @@ impl From<Span<str>> for Span<[u8]> {
 impl From<&Span<str>> for Span<[u8]> {
     fn from(span: &Span<str>) -> Self {
         Self {
-            src: span.src.clone(),
+            data: span.data.clone(),
             range: span.range.clone(),
             _pd: PhantomData,
         }

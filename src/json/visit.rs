@@ -5,7 +5,7 @@ use super::{types, types::JsonValue};
 /// # Example
 ///
 /// ```
-/// use spansy::json::{parse, Number, JsonVisit};
+/// use spansy::json::{parse_str, Number, JsonVisit};
 /// use spansy::Spanned;
 ///
 /// struct DigitReplacer<'a, 'b> {
@@ -23,7 +23,7 @@ use super::{types, types::JsonValue};
 ///
 /// let src = "{\"foo\": [42, 69]}";
 ///
-/// let value = parse(src).unwrap();
+/// let value = parse_str(src).unwrap();
 ///
 /// let mut new = src.to_string();
 ///
