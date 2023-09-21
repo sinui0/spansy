@@ -81,8 +81,8 @@ impl Debug for Span<str> {
 }
 
 impl<T: ?Sized> Span<T> {
-    /// Returns a reference to the source bytes.
-    pub fn src(&self) -> &[u8] {
+    /// Returns a reference to the span data.
+    pub fn data(&self) -> &[u8] {
         self.data.as_ref()
     }
 
@@ -101,6 +101,12 @@ impl<T: ?Sized> Span<T> {
     /// Returns `true` if the span is empty.
     pub fn is_empty(&self) -> bool {
         self.range.is_empty()
+    }
+
+    /// Shifts the span range by the given offset.
+    pub fn offset(&mut self, offset: usize) {
+        self.range.start += offset;
+        self.range.end += offset;
     }
 }
 

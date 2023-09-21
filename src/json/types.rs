@@ -31,6 +31,27 @@ impl JsonValue {
             JsonValue::Object(v) => v.span,
         }
     }
+
+    /// Shifts the span range by the given offset.
+    pub fn offset(&mut self, offset: usize) {
+        match self {
+            JsonValue::Null(v) => v.0.offset(offset),
+            JsonValue::Bool(v) => v.0.offset(offset),
+            JsonValue::Number(v) => v.0.offset(offset),
+            JsonValue::String(v) => v.0.offset(offset),
+            JsonValue::Array(v) => {
+                v.span.offset(offset);
+                v.elems.iter_mut().for_each(|v| v.offset(offset))
+            }
+            JsonValue::Object(v) => {
+                v.span.offset(offset);
+                v.elems.iter_mut().for_each(|(k, v)| {
+                    k.offset(offset);
+                    v.offset(offset);
+                })
+            }
+        }
+    }
 }
 
 impl Spanned<str> for JsonValue {
@@ -156,6 +177,11 @@ macro_rules! impl_type {
             /// Returns the span corresponding to the value.
             pub fn into_span(self) -> Span<str> {
                 self.$span
+            }
+
+            /// Shifts the span range by the given offset.
+            pub fn offset(&mut self, offset: usize) {
+                self.$span.offset(offset);
             }
         }
 
