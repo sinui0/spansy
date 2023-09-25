@@ -35,7 +35,8 @@ pub trait Spanned<T: ?Sized = [u8]> {
 }
 
 /// A span of a source string.
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Span<T: ?Sized = [u8]> {
     pub(crate) data: Bytes,
     pub(crate) range: Range<usize>,

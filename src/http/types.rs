@@ -2,6 +2,7 @@ use crate::{Span, Spanned};
 
 /// An HTTP header name.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HeaderName(pub(crate) Span<str>);
 
 impl HeaderName {
@@ -24,6 +25,7 @@ impl Spanned<str> for HeaderName {
 
 /// An HTTP header value.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HeaderValue(pub(crate) Span);
 
 impl HeaderValue {
@@ -46,6 +48,7 @@ impl Spanned for HeaderValue {
 
 /// An HTTP header.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Header {
     pub(crate) span: Span,
     /// The header name.
@@ -71,6 +74,7 @@ impl Spanned for Header {
 
 /// An HTTP request.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Request {
     pub(crate) span: Span,
     /// The request method.
@@ -113,6 +117,7 @@ impl Spanned for Request {
 
 /// An HTTP response.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Response {
     pub(crate) span: Span,
     /// The response code.
@@ -155,6 +160,7 @@ impl Spanned for Response {
 
 /// An HTTP request or response body.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Body(pub(crate) Span);
 
 impl Body {
