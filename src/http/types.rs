@@ -88,11 +88,14 @@ pub struct Request {
 }
 
 impl Request {
-    /// Returns the request header with the given name (case-insensitive).
-    pub fn header(&self, name: &str) -> Option<&Header> {
+    /// Returns an iterator of request headers with the given name (case-insensitive).
+    ///
+    /// This method returns an iterator because it is valid for HTTP records to contain
+    /// duplicate header names.
+    pub fn headers_with_name<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Header> + 'a {
         self.headers
             .iter()
-            .find(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
+            .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
     }
 
     /// Shifts the span range by the given offset.
@@ -131,11 +134,14 @@ pub struct Response {
 }
 
 impl Response {
-    /// Returns the response header with the given name (case-insensitive).
-    pub fn header(&self, name: &str) -> Option<&Header> {
+    /// Returns an iterator of response headers with the given name (case-insensitive).
+    ///
+    /// This method returns an iterator because it is valid for HTTP records to contain
+    /// duplicate header names.
+    pub fn headers_with_name<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Header> + 'a {
         self.headers
             .iter()
-            .find(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
+            .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
     }
 
     /// Shifts the span range by the given offset.

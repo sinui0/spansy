@@ -111,7 +111,35 @@ mod tests {
 
         assert_eq!(reqs[0].method, "GET");
         assert!(reqs[0].body.is_none());
+        assert_eq!(
+            reqs[0]
+                .headers_with_name("host")
+                .next()
+                .unwrap()
+                .value
+                .as_bytes(),
+            b"localhost"
+        );
+
         assert_eq!(reqs[1].method, "POST");
+        assert_eq!(
+            reqs[1]
+                .headers_with_name("host")
+                .next()
+                .unwrap()
+                .value
+                .as_bytes(),
+            b"localhost"
+        );
+        assert_eq!(
+            reqs[1]
+                .headers_with_name("content-length")
+                .next()
+                .unwrap()
+                .value
+                .as_bytes(),
+            b"14"
+        );
         assert_eq!(
             reqs[1].body.as_ref().unwrap().span(),
             b"Hello, world!\n".as_slice()
@@ -127,13 +155,94 @@ mod tests {
         assert_eq!(resps.len(), 3);
 
         assert_eq!(resps[0].code, "200");
+        assert_eq!(
+            resps[0]
+                .headers_with_name("content-length")
+                .next()
+                .unwrap()
+                .value
+                .as_bytes(),
+            b"0"
+        );
         assert!(resps[0].body.is_none());
+
         assert_eq!(resps[1].code, "200");
+        assert_eq!(
+            resps[1]
+                .headers_with_name("content-length")
+                .next()
+                .unwrap()
+                .value
+                .as_bytes(),
+            b"14"
+        );
         assert_eq!(
             resps[1].body.as_ref().unwrap().span(),
             b"Hello, world!\n".as_slice()
         );
+
         assert_eq!(resps[2].code, "204");
+        assert_eq!(
+            resps[2]
+                .headers_with_name("content-length")
+                .next()
+                .unwrap()
+                .value
+                .as_bytes(),
+            b"0"
+        );
         assert!(resps[2].body.is_none());
+    }
+
+    #[test]
+    fn test_parse_request_duplicate_headers() {
+        let req_bytes = b"GET / HTTP/1.1\r\nHost: localhost\r\nAccept: application/json\r\n\
+        Accept: application/xml\r\n\r\n";
+        let reqs = Requests::new_from_slice(req_bytes)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        assert_eq!(reqs.len(), 1);
+        let req = reqs.first().unwrap();
+
+        let headers: Vec<_> = req.headers_with_name("host").collect();
+        assert_eq!(headers.len(), 1);
+        assert_eq!(headers.first().unwrap().value.as_bytes(), b"localhost");
+
+        let headers: Vec<_> = req.headers_with_name("accept").collect();
+        assert_eq!(headers.len(), 2);
+        assert_eq!(
+            headers
+                .iter()
+                .map(|h| h.value.as_bytes())
+                .collect::<Vec<_>>(),
+            vec!["application/json".as_bytes(), "application/xml".as_bytes()],
+        );
+    }
+
+    #[test]
+    fn test_parse_response_duplicate_headers() {
+        let resp_bytes = b"HTTP/1.1 200 OK\r\nSet-Cookie: lang=en; Path=/\r\n\
+        Set-Cookie: fang=fen; Path=/\r\nContent-Length: 14\r\n\r\n{\"foo\": \"bar\"}";
+        let resps = Responses::new_from_slice(resp_bytes)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        assert_eq!(resps.len(), 1);
+        let resp = resps.first().unwrap();
+
+        let headers: Vec<_> = resp.headers_with_name("set-cookie").collect();
+        assert_eq!(headers.len(), 2);
+        assert_eq!(
+            headers
+                .iter()
+                .map(|h| h.value.as_bytes())
+                .collect::<Vec<_>>(),
+            vec!["lang=en; Path=/".as_bytes(), "fang=fen; Path=/".as_bytes()],
+        );
+
+        let headers: Vec<_> = resp.headers_with_name("content-length").collect();
+        assert_eq!(headers.len(), 1);
+        assert_eq!(headers.first().unwrap().value.as_bytes(), b"14");
     }
 }

@@ -195,11 +195,15 @@ fn request_body_len(request: &Request) -> Result<usize, ParseError> {
 
     // If a message is received with both a Transfer-Encoding and a Content-Length header field,
     // the Transfer-Encoding overrides the Content-Length
-    if request.header("Transfer-Encoding").is_some() {
+    if request
+        .headers_with_name("Transfer-Encoding")
+        .next()
+        .is_some()
+    {
         Err(ParseError(
             "Transfer-Encoding not supported yet".to_string(),
         ))
-    } else if let Some(h) = request.header("Content-Length") {
+    } else if let Some(h) = request.headers_with_name("Content-Length").next() {
         // If a valid Content-Length header field is present without Transfer-Encoding, its decimal value
         // defines the expected message body length in octets.
         std::str::from_utf8(h.value.0.as_bytes())?
@@ -226,11 +230,15 @@ fn response_body_len(response: &Response) -> Result<usize, ParseError> {
         _ => {}
     }
 
-    if response.header("Transfer-Encoding").is_some() {
+    if response
+        .headers_with_name("Transfer-Encoding")
+        .next()
+        .is_some()
+    {
         Err(ParseError(
             "Transfer-Encoding not supported yet".to_string(),
         ))
-    } else if let Some(h) = response.header("Content-Length") {
+    } else if let Some(h) = response.headers_with_name("Content-Length").next() {
         // If a valid Content-Length header field is present without Transfer-Encoding, its decimal value
         // defines the expected message body length in octets.
         std::str::from_utf8(h.value.0.as_bytes())?
@@ -287,11 +295,15 @@ mod tests {
         assert_eq!(req.span(), TEST_REQUEST);
         assert_eq!(req.method, "GET");
         assert_eq!(
-            req.header("Host").unwrap().value.span(),
+            req.headers_with_name("Host").next().unwrap().value.span(),
             b"developer.mozilla.org".as_slice()
         );
         assert_eq!(
-            req.header("User-Agent").unwrap().value.span(),
+            req.headers_with_name("User-Agent")
+                .next()
+                .unwrap()
+                .value
+                .span(),
             b"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:50.0) Gecko/20100101 Firefox/50.0"
                 .as_slice()
         );
@@ -306,11 +318,15 @@ mod tests {
         assert_eq!(res.code, "200");
         assert_eq!(res.reason, "OK");
         assert_eq!(
-            res.header("Server").unwrap().value.span(),
+            res.headers_with_name("Server").next().unwrap().value.span(),
             b"Apache/2.2.14 (Win32)".as_slice()
         );
         assert_eq!(
-            res.header("Connection").unwrap().value.span(),
+            res.headers_with_name("Connection")
+                .next()
+                .unwrap()
+                .value
+                .span(),
             b"Closed".as_slice()
         );
         assert_eq!(
