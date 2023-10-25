@@ -6,7 +6,7 @@ mod types;
 use bytes::Bytes;
 
 pub use span::{parse_request, parse_response};
-pub use types::{Body, Header, HeaderName, HeaderValue, Request, Response, SameNameHeaders};
+pub use types::{Body, Header, HeaderName, HeaderValue, Request, Response};
 
 use crate::ParseError;
 
