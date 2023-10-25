@@ -163,4 +163,56 @@ mod tests {
         );
         assert!(resps[2].body.is_none());
     }
+
+    #[test]
+    fn test_parse_request_duplicate_headers() {
+        let req_bytes = b"GET / HTTP/1.1\r\nHost: localhost\r\nAccept: application/json\r\n\
+        Accept: application/xml\r\n\r\n";
+        let reqs = Requests::new_from_slice(req_bytes)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        assert_eq!(reqs.len(), 1);
+        let req = reqs.first().unwrap();
+
+        let headers = req.all_headers_with_name("host");
+        assert_eq!(headers.len(), 1);
+        assert_eq!(headers.first().unwrap().value.as_bytes(), b"localhost");
+
+        let headers = req.all_headers_with_name("accept");
+        assert_eq!(headers.len(), 2);
+        assert_eq!(
+            headers
+                .iter()
+                .map(|h| h.value.as_bytes())
+                .collect::<Vec<_>>(),
+            vec!["application/json".as_bytes(), "application/xml".as_bytes()],
+        );
+    }
+
+    #[test]
+    fn test_parse_response_duplicate_headers() {
+        let resp_bytes = b"HTTP/1.1 200 OK\r\nSet-Cookie: lang=en; Path=/\r\n\
+        Set-Cookie: fang=fen; Path=/\r\nContent-Length: 14\r\n\r\n{\"foo\": \"bar\"}";
+        let resps = Responses::new_from_slice(resp_bytes)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        assert_eq!(resps.len(), 1);
+        let resp = resps.first().unwrap();
+
+        let headers = resp.all_headers_with_name("set-cookie");
+        assert_eq!(headers.len(), 2);
+        assert_eq!(
+            headers
+                .iter()
+                .map(|h| h.value.as_bytes())
+                .collect::<Vec<_>>(),
+            vec!["lang=en; Path=/".as_bytes(), "fang=fen; Path=/".as_bytes()],
+        );
+
+        let headers = resp.all_headers_with_name("content-length");
+        assert_eq!(headers.len(), 1);
+        assert_eq!(headers.first().unwrap().value.as_bytes(), b"14");
+    }
 }

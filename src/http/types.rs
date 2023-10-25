@@ -89,8 +89,8 @@ pub struct Request {
 
 impl Request {
     /// Returns the request header with the given name (case-insensitive). If there are multiple
-    /// headers associated with the name, then the first one is returned. Use `all_headers` to get
-    /// all values associated with a given name.
+    /// headers associated with the name, then the first one is returned. Use
+    /// `all_headers_with_name` to get all values associated with a given name.
     pub fn header(&self, name: &str) -> Option<&Header> {
         self.headers
             .iter()
@@ -98,9 +98,10 @@ impl Request {
     }
 
     /// Returns a `Vec` of all request headers associated with a name.
-    pub fn all_headers(&self, name: &str) -> Vec<&Header> {
+    pub fn all_headers_with_name(&self, name: &str) -> Vec<&Header> {
         // TODO: use Option???
         // TODO: implement
+        Vec::new()
     }
 
     /// Shifts the span range by the given offset.
@@ -140,8 +141,8 @@ pub struct Response {
 
 impl Response {
     /// Returns the response header with the given name (case-insensitive). If there are multiple
-    /// headers associated with the name, then the first one is returned. Use `all_headers` to get
-    /// all values associated with a given name.
+    /// headers associated with the name, then the first one is returned. Use
+    /// `all_headers_with_name` to get all values associated with a given name.
     pub fn header(&self, name: &str) -> Option<&Header> {
         self.headers
             .iter()
@@ -149,9 +150,10 @@ impl Response {
     }
 
     /// Returns a `Vec` of all response headers associated with a name.
-    pub fn all_headers(&self, name: &str) -> Vec<&Header> {
+    pub fn all_headers_with_name(&self, name: &str) -> Vec<&Header> {
         // TODO: use Option???
         // TODO: implement
+        Vec::new()
     }
 
     /// Shifts the span range by the given offset.
