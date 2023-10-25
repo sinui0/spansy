@@ -88,11 +88,20 @@ pub struct Request {
 }
 
 impl Request {
-    /// Returns the request header with the given name (case-insensitive).
-    pub fn header(&self, name: &str) -> Option<&Header> {
-        self.headers
+    /// Returns all the request headers with the given name (case-insensitive). Returns `None` if
+    /// there are no matching headers. Returns `Some` if there is at least one matching header.
+    /// Never returns `Some` with an empty `Vec`.
+    pub fn header(&self, name: &str) -> Option<Vec<&Header>> {
+        let matching: Vec<&Header> = self
+            .headers
             .iter()
-            .find(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
+            .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
+            .collect();
+        if matching.is_empty() {
+            None
+        } else {
+            Some(matching)
+        }
     }
 
     /// Shifts the span range by the given offset.
@@ -131,11 +140,20 @@ pub struct Response {
 }
 
 impl Response {
-    /// Returns the response header with the given name (case-insensitive).
-    pub fn header(&self, name: &str) -> Option<&Header> {
-        self.headers
+    /// Returns all the response headers with the given name (case-insensitive). Returns `None` if
+    /// there are no matching headers. Returns `Some` if there is at least one matching header.
+    /// Never returns `Some` with an empty `Vec`.
+    pub fn header(&self, name: &str) -> Option<Vec<&Header>> {
+        let matching: Vec<&Header> = self
+            .headers
             .iter()
-            .find(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
+            .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
+            .collect();
+        if matching.is_empty() {
+            None
+        } else {
+            Some(matching)
+        }
     }
 
     /// Shifts the span range by the given offset.
