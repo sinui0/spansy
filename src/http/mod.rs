@@ -112,17 +112,32 @@ mod tests {
         assert_eq!(reqs[0].method, "GET");
         assert!(reqs[0].body.is_none());
         assert_eq!(
-            reqs[0].header("host").unwrap().value.as_bytes(),
+            reqs[0]
+                .headers_with_name("host")
+                .next()
+                .unwrap()
+                .value
+                .as_bytes(),
             b"localhost"
         );
 
         assert_eq!(reqs[1].method, "POST");
         assert_eq!(
-            reqs[1].header("host").unwrap().value.as_bytes(),
+            reqs[1]
+                .headers_with_name("host")
+                .next()
+                .unwrap()
+                .value
+                .as_bytes(),
             b"localhost"
         );
         assert_eq!(
-            reqs[1].header("content-length").unwrap().value.as_bytes(),
+            reqs[1]
+                .headers_with_name("content-length")
+                .next()
+                .unwrap()
+                .value
+                .as_bytes(),
             b"14"
         );
         assert_eq!(
@@ -141,14 +156,24 @@ mod tests {
 
         assert_eq!(resps[0].code, "200");
         assert_eq!(
-            resps[0].header("content-length").unwrap().value.as_bytes(),
+            resps[0]
+                .headers_with_name("content-length")
+                .next()
+                .unwrap()
+                .value
+                .as_bytes(),
             b"0"
         );
         assert!(resps[0].body.is_none());
 
         assert_eq!(resps[1].code, "200");
         assert_eq!(
-            resps[1].header("content-length").unwrap().value.as_bytes(),
+            resps[1]
+                .headers_with_name("content-length")
+                .next()
+                .unwrap()
+                .value
+                .as_bytes(),
             b"14"
         );
         assert_eq!(
@@ -158,7 +183,12 @@ mod tests {
 
         assert_eq!(resps[2].code, "204");
         assert_eq!(
-            resps[2].header("content-length").unwrap().value.as_bytes(),
+            resps[2]
+                .headers_with_name("content-length")
+                .next()
+                .unwrap()
+                .value
+                .as_bytes(),
             b"0"
         );
         assert!(resps[2].body.is_none());
@@ -175,11 +205,11 @@ mod tests {
         assert_eq!(reqs.len(), 1);
         let req = reqs.first().unwrap();
 
-        let headers = req.all_headers_with_name("host");
+        let headers: Vec<_> = req.headers_with_name("host").collect();
         assert_eq!(headers.len(), 1);
         assert_eq!(headers.first().unwrap().value.as_bytes(), b"localhost");
 
-        let headers = req.all_headers_with_name("accept");
+        let headers: Vec<_> = req.headers_with_name("accept").collect();
         assert_eq!(headers.len(), 2);
         assert_eq!(
             headers
@@ -201,7 +231,7 @@ mod tests {
         assert_eq!(resps.len(), 1);
         let resp = resps.first().unwrap();
 
-        let headers = resp.all_headers_with_name("set-cookie");
+        let headers: Vec<_> = resp.headers_with_name("set-cookie").collect();
         assert_eq!(headers.len(), 2);
         assert_eq!(
             headers
@@ -211,7 +241,7 @@ mod tests {
             vec!["lang=en; Path=/".as_bytes(), "fang=fen; Path=/".as_bytes()],
         );
 
-        let headers = resp.all_headers_with_name("content-length");
+        let headers: Vec<_> = resp.headers_with_name("content-length").collect();
         assert_eq!(headers.len(), 1);
         assert_eq!(headers.first().unwrap().value.as_bytes(), b"14");
     }

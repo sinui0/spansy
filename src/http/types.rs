@@ -88,21 +88,14 @@ pub struct Request {
 }
 
 impl Request {
-    /// Returns the request header with the given name (case-insensitive). If there are multiple
-    /// headers associated with the name, then the first one is returned. Use
-    /// `all_headers_with_name` to get all values associated with a given name.
-    pub fn header(&self, name: &str) -> Option<&Header> {
-        self.headers
-            .iter()
-            .find(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
-    }
-
-    /// Returns a `Vec` of all request headers associated with a name.
-    pub fn all_headers_with_name(&self, name: &str) -> Vec<&Header> {
+    /// Returns an iterator of request headers with the given name (case-insensitive).
+    ///
+    /// This method returns an iterator because it is valid for HTTP records to contain
+    /// duplicate header names.
+    pub fn headers_with_name<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Header> + 'a {
         self.headers
             .iter()
             .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
-            .collect()
     }
 
     /// Shifts the span range by the given offset.
@@ -141,21 +134,14 @@ pub struct Response {
 }
 
 impl Response {
-    /// Returns the response header with the given name (case-insensitive). If there are multiple
-    /// headers associated with the name, then the first one is returned. Use
-    /// `all_headers_with_name` to get all values associated with a given name.
-    pub fn header(&self, name: &str) -> Option<&Header> {
-        self.headers
-            .iter()
-            .find(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
-    }
-
-    /// Returns a `Vec` of all response headers associated with a name.
-    pub fn all_headers_with_name(&self, name: &str) -> Vec<&Header> {
+    /// Returns an iterator of response headers with the given name (case-insensitive).
+    ///
+    /// This method returns an iterator because it is valid for HTTP records to contain
+    /// duplicate header names.
+    pub fn headers_with_name<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Header> + 'a {
         self.headers
             .iter()
             .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
-            .collect()
     }
 
     /// Shifts the span range by the given offset.
