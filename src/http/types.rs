@@ -66,6 +66,13 @@ impl Header {
     }
 }
 
+/// A collection of headers with the same name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SameNameHeaders<'a> {
+    /// Vector of headers with the same name.
+    pub headers: Vec<&'a Header>,
+}
+
 impl Spanned for Header {
     fn span(&self) -> &Span {
         &self.span
@@ -88,9 +95,7 @@ pub struct Request {
 }
 
 impl Request {
-    /// Returns all the request headers with the given name (case-insensitive). Returns `None` if
-    /// there are no matching headers. Returns `Some` if there is at least one matching header.
-    /// Never returns `Some` with an empty `Vec`.
+    /// Returns all the request headers with the given name (case-insensitive).
     pub fn header(&self, name: &str) -> Option<Vec<&Header>> {
         let matching: Vec<&Header> = self
             .headers
