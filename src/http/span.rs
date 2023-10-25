@@ -202,7 +202,7 @@ fn request_body_len(request: &Request) -> Result<usize, ParseError> {
     } else if let Some(h) = request.header("Content-Length") {
         // If a valid Content-Length header field is present without Transfer-Encoding, its decimal value
         // defines the expected message body length in octets.
-        std::str::from_utf8(h[0].value.0.as_bytes())?
+        std::str::from_utf8(h.value.0.as_bytes())?
             .parse::<usize>()
             .map_err(|err| ParseError(format!("failed to parse Content-Length value: {err}")))
     } else {
@@ -233,7 +233,7 @@ fn response_body_len(response: &Response) -> Result<usize, ParseError> {
     } else if let Some(h) = response.header("Content-Length") {
         // If a valid Content-Length header field is present without Transfer-Encoding, its decimal value
         // defines the expected message body length in octets.
-        std::str::from_utf8(h[0].value.0.as_bytes())?
+        std::str::from_utf8(h.value.0.as_bytes())?
             .parse::<usize>()
             .map_err(|err| ParseError(format!("failed to parse Content-Length value: {err}")))
     } else {
@@ -287,11 +287,11 @@ mod tests {
         assert_eq!(req.span(), TEST_REQUEST);
         assert_eq!(req.method, "GET");
         assert_eq!(
-            req.header("Host").unwrap()[0].value.span(),
+            req.header("Host").unwrap().value.span(),
             b"developer.mozilla.org".as_slice()
         );
         assert_eq!(
-            req.header("User-Agent").unwrap()[0].value.span(),
+            req.header("User-Agent").unwrap().value.span(),
             b"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:50.0) Gecko/20100101 Firefox/50.0"
                 .as_slice()
         );
@@ -306,11 +306,11 @@ mod tests {
         assert_eq!(res.code, "200");
         assert_eq!(res.reason, "OK");
         assert_eq!(
-            res.header("Server").unwrap()[0].value.span(),
+            res.header("Server").unwrap().value.span(),
             b"Apache/2.2.14 (Win32)".as_slice()
         );
         assert_eq!(
-            res.header("Connection").unwrap()[0].value.span(),
+            res.header("Connection").unwrap().value.span(),
             b"Closed".as_slice()
         );
         assert_eq!(
