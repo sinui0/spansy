@@ -99,9 +99,10 @@ impl Request {
 
     /// Returns a `Vec` of all request headers associated with a name.
     pub fn all_headers_with_name(&self, name: &str) -> Vec<&Header> {
-        // TODO: use Option???
-        // TODO: implement
-        Vec::new()
+        self.headers
+            .iter()
+            .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
+            .collect()
     }
 
     /// Shifts the span range by the given offset.
@@ -151,9 +152,10 @@ impl Response {
 
     /// Returns a `Vec` of all response headers associated with a name.
     pub fn all_headers_with_name(&self, name: &str) -> Vec<&Header> {
-        // TODO: use Option???
-        // TODO: implement
-        Vec::new()
+        self.headers
+            .iter()
+            .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
+            .collect()
     }
 
     /// Shifts the span range by the given offset.
