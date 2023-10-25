@@ -111,7 +111,20 @@ mod tests {
 
         assert_eq!(reqs[0].method, "GET");
         assert!(reqs[0].body.is_none());
+        assert_eq!(
+            reqs[0].header("host").unwrap().value.as_bytes(),
+            b"localhost"
+        );
+
         assert_eq!(reqs[1].method, "POST");
+        assert_eq!(
+            reqs[1].header("host").unwrap().value.as_bytes(),
+            b"localhost"
+        );
+        assert_eq!(
+            reqs[1].header("content-length").unwrap().value.as_bytes(),
+            b"14"
+        );
         assert_eq!(
             reqs[1].body.as_ref().unwrap().span(),
             b"Hello, world!\n".as_slice()
@@ -127,13 +140,27 @@ mod tests {
         assert_eq!(resps.len(), 3);
 
         assert_eq!(resps[0].code, "200");
+        assert_eq!(
+            resps[0].header("content-length").unwrap().value.as_bytes(),
+            b"0"
+        );
         assert!(resps[0].body.is_none());
+
         assert_eq!(resps[1].code, "200");
+        assert_eq!(
+            resps[1].header("content-length").unwrap().value.as_bytes(),
+            b"14"
+        );
         assert_eq!(
             resps[1].body.as_ref().unwrap().span(),
             b"Hello, world!\n".as_slice()
         );
+
         assert_eq!(resps[2].code, "204");
+        assert_eq!(
+            resps[2].header("content-length").unwrap().value.as_bytes(),
+            b"0"
+        );
         assert!(resps[2].body.is_none());
     }
 }
