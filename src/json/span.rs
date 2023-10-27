@@ -22,6 +22,14 @@ pub fn parse_str(src: &str) -> Result<JsonValue, ParseError> {
         .next()
         .ok_or_else(|| ParseError("no json value is present in source".to_string()))?;
 
+    // Since json.pest grammar prohibits leading characters but allows trailing
+    // characters, we prohibit trailing characters here.
+    if value.as_str().len() != src.len() {
+        return Err(ParseError(
+            "trailing characters are present in source".to_string(),
+        ));
+    }
+
     Ok(JsonValue::from_pair(src.clone(), value))
 }
 
@@ -38,6 +46,14 @@ pub fn parse(src: Bytes) -> Result<JsonValue, ParseError> {
     let value = JsonParser::parse(Rule::value, src_str)?
         .next()
         .ok_or_else(|| ParseError("no json value is present in source".to_string()))?;
+
+    // Since json.pest grammar prohibits leading characters but allows trailing
+    // characters, we prohibit trailing characters here.
+    if value.as_str().len() != src.len() {
+        return Err(ParseError(
+            "trailing characters are present in source".to_string(),
+        ));
+    }
 
     Ok(JsonValue::from_pair(src.clone(), value))
 }
@@ -136,5 +152,20 @@ mod tests {
         assert_eq!(value.get("baz").unwrap().span(), "123");
         assert_eq!(value.get("quux.a").unwrap().span(), "b");
         assert_eq!(value.get("arr").unwrap().span(), "[1, 2, 3]");
+    }
+
+    #[test]
+    fn test_err_leading_characters() {
+        let src = " {\"foo\": \"bar\"}";
+        assert!(parse_str(src).is_err());
+    }
+
+    #[test]
+    fn test_err_trailing_characters() {
+        let src = "{\"foo\": \"bar\"} ";
+        assert_eq!(
+            parse_str(src).err().unwrap().to_string(),
+            "parsing error: trailing characters are present in source"
+        );
     }
 }
