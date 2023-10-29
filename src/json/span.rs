@@ -1,5 +1,6 @@
 use bytes::Bytes;
-use pest::{iterators::Pair, Parser};
+use pest::{iterators::Pair as PestPair, Parser};
+use types::KeyValue;
 
 use super::types::{self, JsonValue};
 
@@ -44,7 +45,7 @@ pub fn parse(src: Bytes) -> Result<JsonValue, ParseError> {
 macro_rules! impl_from_pair {
     ($ty:ty, $rule:ident) => {
         impl $ty {
-            fn from_pair(src: Bytes, pair: Pair<'_, Rule>) -> Self {
+            fn from_pair(src: Bytes, pair: PestPair<'_, Rule>) -> Self {
                 assert!(matches!(pair.as_rule(), Rule::$rule));
 
                 Self(Span::new_from_str(src, pair.as_str()))
@@ -59,34 +60,41 @@ impl_from_pair!(types::Bool, bool);
 impl_from_pair!(types::Null, null);
 impl_from_pair!(types::String, string);
 
+impl types::KeyValue {
+    fn from_pair(src: Bytes, pair: PestPair<'_, Rule>) -> Self {
+        assert!(matches!(pair.as_rule(), Rule::pair));
+
+        let span = Span::new_from_str(src.clone(), pair.as_str().trim_end());
+
+        let mut pairs = pair.into_inner();
+
+        let key = pairs.next().expect("key is present");
+        let value = pairs.next().expect("value is present");
+
+        Self {
+            span,
+            key: types::JsonKey::from_pair(src.clone(), key),
+            value: types::JsonValue::from_pair(src.clone(), value),
+        }
+    }
+}
+
 impl types::Object {
-    fn from_pair(src: Bytes, pair: Pair<'_, Rule>) -> Self {
+    fn from_pair(src: Bytes, pair: PestPair<'_, Rule>) -> Self {
         assert!(matches!(pair.as_rule(), Rule::object));
 
         Self {
             span: Span::new_from_str(src.clone(), pair.as_str()),
             elems: pair
                 .into_inner()
-                .map(|pair| {
-                    assert!(matches!(pair.as_rule(), Rule::pair));
-
-                    let mut pairs = pair.into_inner();
-
-                    let key = pairs.next().expect("key is present");
-                    let value = pairs.next().expect("value is present");
-
-                    (
-                        types::JsonKey::from_pair(src.clone(), key),
-                        types::JsonValue::from_pair(src.clone(), value),
-                    )
-                })
+                .map(|pair| KeyValue::from_pair(src.clone(), pair))
                 .collect(),
         }
     }
 }
 
 impl types::Array {
-    fn from_pair(src: Bytes, pair: Pair<'_, Rule>) -> Self {
+    fn from_pair(src: Bytes, pair: PestPair<'_, Rule>) -> Self {
         assert!(matches!(pair.as_rule(), Rule::array));
 
         Self {
@@ -100,7 +108,7 @@ impl types::Array {
 }
 
 impl types::JsonValue {
-    fn from_pair(src: Bytes, pair: Pair<'_, Rule>) -> Self {
+    fn from_pair(src: Bytes, pair: PestPair<'_, Rule>) -> Self {
         match pair.as_rule() {
             Rule::object => Self::Object(types::Object::from_pair(src, pair)),
             Rule::array => Self::Array(types::Array::from_pair(src, pair)),
@@ -123,6 +131,8 @@ mod tests {
         let src = r#"{"foo": "bar", "baz": 123, "quux": { "a": "b", "c": "d" }, "arr": [1, 2, 3]}"#;
 
         let value = parse_str(src).unwrap();
+
+        println!("{:#?}", value);
 
         assert_eq!(value.get("foo").unwrap().span(), "bar");
         assert_eq!(value.get("baz").unwrap().span(), "123");

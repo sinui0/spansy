@@ -33,6 +33,12 @@ use super::{types, types::JsonValue};
 /// assert_eq!(new, "{\"foo\": [99, 99]}");
 /// ```
 pub trait JsonVisit {
+    /// Visit a key value pair in a JSON object.
+    fn visit_key_value(&mut self, node: &types::KeyValue) {
+        self.visit_key(&node.key);
+        self.visit_value(&node.value);
+    }
+
     /// Visit a key in a JSON object.
     fn visit_key(&mut self, _node: &types::JsonKey) {}
 
@@ -57,9 +63,8 @@ pub trait JsonVisit {
 
     /// Visit an object value.
     fn visit_object(&mut self, node: &types::Object) {
-        for (key, value) in &node.elems {
-            self.visit_key(key);
-            self.visit_value(value);
+        for kv in &node.elems {
+            self.visit_key_value(kv);
         }
     }
 

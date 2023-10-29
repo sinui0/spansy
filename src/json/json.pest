@@ -15,8 +15,8 @@ eoi = _{ !ANY }
 
 /// Matches object, e.g.: `{ "foo": "bar" }`
 /// Foobar
-object = { "{" ~ pair ~ ("," ~ pair)* ~ "}" | "{" ~ "}" }
-pair   = { quoted_string ~ ":" ~ value }
+object = { "{" ~ pair ~ (pair)* ~ "}" | "{" ~ "}" }
+pair   = { quoted_string ~ ":" ~ value ~ (",")? }
 
 array = { "[" ~ value ~ ("," ~ value)* ~ "]" | "[" ~ "]" }
 
