@@ -87,6 +87,11 @@ impl<T: ?Sized> Span<T> {
         self.data.as_ref()
     }
 
+    /// Converts the span into bytes.
+    pub fn to_bytes(self) -> Bytes {
+        self.data
+    }
+
     /// Returns the corresponding range within the source string.
     pub fn range(&self) -> Range<usize> {
         self.range.clone()
