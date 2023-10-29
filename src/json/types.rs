@@ -263,6 +263,7 @@ impl_type!(Number, 0);
 impl_type!(String, 0);
 impl_type!(Array, span);
 impl_type!(Object, span);
+impl_type!(KeyValue, span);
 
 #[cfg(test)]
 mod tests {
