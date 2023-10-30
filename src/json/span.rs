@@ -132,8 +132,6 @@ mod tests {
 
         let value = parse_str(src).unwrap();
 
-        println!("{:#?}", value);
-
         assert_eq!(value.get("foo").unwrap().span(), "bar");
         assert_eq!(value.get("baz").unwrap().span(), "123");
         assert_eq!(value.get("quux.a").unwrap().span(), "b");
