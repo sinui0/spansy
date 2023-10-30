@@ -144,7 +144,11 @@ impl Span<str> {
     pub(crate) fn new_from_str(src: Bytes, span: &str) -> Self {
         let range = helpers::get_span_range(src.as_ref(), span.as_bytes());
 
-        Span::new_str(src, range)
+        Self {
+            data: src.slice(range.clone()),
+            range,
+            _pd: PhantomData,
+        }
     }
 
     /// Converts this type to a string slice.
