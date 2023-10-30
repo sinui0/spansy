@@ -72,15 +72,40 @@ impl Spanned for Header {
     }
 }
 
+/// An HTTP request line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RequestLine {
+    pub(crate) span: Span<str>,
+
+    /// The request method.
+    pub method: Span<str>,
+    /// The request path.
+    pub path: Span<str>,
+}
+
+impl RequestLine {
+    /// Shifts the span range by the given offset.
+    pub fn offset(&mut self, offset: usize) {
+        self.span.offset(offset);
+        self.method.offset(offset);
+        self.path.offset(offset);
+    }
+}
+
+impl Spanned<str> for RequestLine {
+    fn span(&self) -> &Span<str> {
+        &self.span
+    }
+}
+
 /// An HTTP request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Request {
     pub(crate) span: Span,
-    /// The request method.
-    pub method: Span<str>,
-    /// The request path.
-    pub path: Span<str>,
+    /// The request line.
+    pub request: RequestLine,
     /// Request headers.
     pub headers: Vec<Header>,
     /// Request body.
@@ -92,7 +117,7 @@ impl Request {
     ///
     /// This method returns an iterator because it is valid for HTTP records to contain
     /// duplicate header names.
-    pub fn headers_with_name<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Header> + 'a {
+    pub fn headers_with_name<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Header> {
         self.headers
             .iter()
             .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
@@ -101,8 +126,7 @@ impl Request {
     /// Shifts the span range by the given offset.
     pub fn offset(&mut self, offset: usize) {
         self.span.offset(offset);
-        self.method.offset(offset);
-        self.path.offset(offset);
+        self.request.offset(offset);
         for header in &mut self.headers {
             header.offset(offset);
         }
@@ -118,15 +142,40 @@ impl Spanned for Request {
     }
 }
 
+/// An HTTP response status.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Status {
+    pub(crate) span: Span<str>,
+
+    /// The response code.
+    pub code: Span<str>,
+    /// The reason phrase.
+    pub reason: Span<str>,
+}
+
+impl Status {
+    /// Shifts the span range by the given offset.
+    pub fn offset(&mut self, offset: usize) {
+        self.span.offset(offset);
+        self.code.offset(offset);
+        self.reason.offset(offset);
+    }
+}
+
+impl Spanned<str> for Status {
+    fn span(&self) -> &Span<str> {
+        &self.span
+    }
+}
+
 /// An HTTP response.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Response {
     pub(crate) span: Span,
-    /// The response code.
-    pub code: Span<str>,
-    /// The reason phrase.
-    pub reason: Span<str>,
+    /// The response status.
+    pub status: Status,
     /// Response headers.
     pub headers: Vec<Header>,
     /// Response body.
@@ -138,7 +187,7 @@ impl Response {
     ///
     /// This method returns an iterator because it is valid for HTTP records to contain
     /// duplicate header names.
-    pub fn headers_with_name<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Header> + 'a {
+    pub fn headers_with_name<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Header> {
         self.headers
             .iter()
             .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
@@ -147,8 +196,7 @@ impl Response {
     /// Shifts the span range by the given offset.
     pub fn offset(&mut self, offset: usize) {
         self.span.offset(offset);
-        self.code.offset(offset);
-        self.reason.offset(offset);
+        self.status.offset(offset);
         for header in &mut self.headers {
             header.offset(offset);
         }

@@ -2,7 +2,7 @@ use bytes::Bytes;
 
 use crate::{
     helpers::get_span_range,
-    http::types::{Body, Header, HeaderName, HeaderValue, Request, Response},
+    http::{Body, Header, HeaderName, HeaderValue, Request, RequestLine, Response, Status},
     ParseError, Span,
 };
 
@@ -39,6 +39,12 @@ pub(crate) fn parse_request_from_bytes(src: &Bytes, offset: usize) -> Result<Req
         (method, path, head_end)
     };
 
+    let request_line_end = src[offset..]
+        .windows(2)
+        .position(|w| w == b"\r\n")
+        .expect("request line is terminated with CRLF");
+    let request_line_range = offset..offset + request_line_end + 2;
+
     let headers = headers
         .iter()
         .take_while(|h| *h != &httparse::EMPTY_HEADER)
@@ -50,7 +56,8 @@ pub(crate) fn parse_request_from_bytes(src: &Bytes, offset: usize) -> Result<Req
 
             let value = HeaderValue(Span::new_bytes(src.clone(), get_span_range(src, h.value)));
 
-            let header_range = name.0.range.start..value.0.range.end;
+            // Add 2 to the end of the range to account for the terminating \r\n.
+            let header_range = name.0.range.start..value.0.range.end + 2;
             Header {
                 span: Span::new_bytes(src.clone(), header_range),
                 name,
@@ -69,8 +76,11 @@ pub(crate) fn parse_request_from_bytes(src: &Bytes, offset: usize) -> Result<Req
 
     let mut request = Request {
         span: Span::new_bytes(src.clone(), offset..head_end),
-        method: Span::new_str(src.clone(), get_span_range(src, method)),
-        path: Span::new_from_str(src.clone(), path),
+        request: RequestLine {
+            span: Span::new_str(src.clone(), request_line_range),
+            method: Span::new_str(src.clone(), get_span_range(src, method)),
+            path: Span::new_from_str(src.clone(), path),
+        },
         headers,
         body: None,
     };
@@ -132,6 +142,12 @@ pub(crate) fn parse_response_from_bytes(
         (reason, code, head_end)
     };
 
+    let status_line_end = src[offset..]
+        .windows(2)
+        .position(|w| w == b"\r\n")
+        .expect("status line is terminated with CRLF");
+    let status_line_range = offset..offset + status_line_end + 2;
+
     let headers = headers
         .iter()
         .take_while(|h| *h != &httparse::EMPTY_HEADER)
@@ -143,7 +159,8 @@ pub(crate) fn parse_response_from_bytes(
 
             let value = HeaderValue(Span::new_bytes(src.clone(), get_span_range(src, h.value)));
 
-            let header_range = name.0.range.start..value.0.range.end;
+            // Add 2 to the end of the range to include CRLF.
+            let header_range = name.0.range.start..value.0.range.end + 2;
             Header {
                 span: Span::new_bytes(src.clone(), header_range),
                 name,
@@ -160,8 +177,11 @@ pub(crate) fn parse_response_from_bytes(
 
     let mut response = Response {
         span: Span::new_bytes(src.clone(), offset..head_end),
-        code: Span::new_str(src.clone(), get_span_range(src, code)),
-        reason: Span::new_str(src.clone(), get_span_range(src, reason.as_bytes())),
+        status: Status {
+            span: Span::new_str(src.clone(), status_line_range),
+            code: Span::new_str(src.clone(), get_span_range(src, code)),
+            reason: Span::new_from_str(src.clone(), reason),
+        },
         headers,
         body: None,
     };
@@ -221,6 +241,7 @@ fn response_body_len(response: &Response) -> Result<usize, ParseError> {
     // status code is always terminated by the first empty line after the header fields, regardless of the header fields
     // present in the message, and thus cannot contain a message body or trailer section.
     match response
+        .status
         .code
         .as_str()
         .parse::<usize>()
@@ -262,26 +283,26 @@ mod tests {
     use super::*;
 
     const TEST_REQUEST: &[u8] = b"\
-                        GET /home.html HTTP/1.1\n\
-                        Host: developer.mozilla.org\n\
-                        User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:50.0) Gecko/20100101 Firefox/50.0\n\
-                        Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.\n\
-                        Accept-Language: en-US,en;q=0.\n\
-                        Accept-Encoding: gzip, deflate, b\n\
-                        Referer: https://developer.mozilla.org/testpage.htm\n\
-                        Connection: keep-alive\n\
-                        Content-Length: 12\n\
-                        Cache-Control: max-age=0\n\n\
+                        GET /home.html HTTP/1.1\r\n\
+                        Host: developer.mozilla.org\r\n\
+                        User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:50.0) Gecko/20100101 Firefox/50.0\r\n\
+                        Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.\r\n\
+                        Accept-Language: en-US,en;q=0.\r\n\
+                        Accept-Encoding: gzip, deflate, b\r\n\
+                        Referer: https://developer.mozilla.org/testpage.htm\r\n\
+                        Connection: keep-alive\r\n\
+                        Content-Length: 12\r\n\
+                        Cache-Control: max-age=0\r\n\r\n\
                         Hello World!";
 
     const TEST_RESPONSE: &[u8] = b"\
-                        HTTP/1.1 200 OK\n\
-                        Date: Mon, 27 Jul 2009 12:28:53 GMT\n\
-                        Server: Apache/2.2.14 (Win32)\n\
-                        Last-Modified: Wed, 22 Jul 2009 19:15:56 GMT\n\
-                        Content-Length: 52\n\
-                        Content-Type: text/html\n\
-                        Connection: Closed\n\n\
+                        HTTP/1.1 200 OK\r\n\
+                        Date: Mon, 27 Jul 2009 12:28:53 GMT\r\n\
+                        Server: Apache/2.2.14 (Win32)\r\n\
+                        Last-Modified: Wed, 22 Jul 2009 19:15:56 GMT\r\n\
+                        Content-Length: 52\r\n\
+                        Content-Type: text/html\r\n\
+                        Connection: Closed\r\n\r\n\
                         <html>\n\
                         <body>\n\
                         <h1>Hello, World!</h1>\n\
@@ -293,7 +314,7 @@ mod tests {
         let req = parse_request(TEST_REQUEST).unwrap();
 
         assert_eq!(req.span(), TEST_REQUEST);
-        assert_eq!(req.method, "GET");
+        assert_eq!(req.request.method, "GET");
         assert_eq!(
             req.headers_with_name("Host").next().unwrap().value.span(),
             b"developer.mozilla.org".as_slice()
@@ -315,8 +336,8 @@ mod tests {
         let res = parse_response(TEST_RESPONSE).unwrap();
 
         assert_eq!(res.span(), TEST_RESPONSE);
-        assert_eq!(res.code, "200");
-        assert_eq!(res.reason, "OK");
+        assert_eq!(res.status.code, "200");
+        assert_eq!(res.status.reason, "OK");
         assert_eq!(
             res.headers_with_name("Server").next().unwrap().value.span(),
             b"Apache/2.2.14 (Win32)".as_slice()

@@ -6,7 +6,7 @@ mod types;
 use bytes::Bytes;
 
 pub use span::{parse_request, parse_response};
-pub use types::{Body, Header, HeaderName, HeaderValue, Request, Response};
+pub use types::{Body, Header, HeaderName, HeaderValue, Request, RequestLine, Response, Status};
 
 use crate::ParseError;
 
@@ -109,7 +109,7 @@ mod tests {
 
         assert_eq!(reqs.len(), 2);
 
-        assert_eq!(reqs[0].method, "GET");
+        assert_eq!(reqs[0].request.method, "GET");
         assert!(reqs[0].body.is_none());
         assert_eq!(
             reqs[0]
@@ -121,7 +121,7 @@ mod tests {
             b"localhost"
         );
 
-        assert_eq!(reqs[1].method, "POST");
+        assert_eq!(reqs[1].request.method, "POST");
         assert_eq!(
             reqs[1]
                 .headers_with_name("host")
@@ -154,7 +154,7 @@ mod tests {
 
         assert_eq!(resps.len(), 3);
 
-        assert_eq!(resps[0].code, "200");
+        assert_eq!(resps[0].status.code, "200");
         assert_eq!(
             resps[0]
                 .headers_with_name("content-length")
@@ -166,7 +166,7 @@ mod tests {
         );
         assert!(resps[0].body.is_none());
 
-        assert_eq!(resps[1].code, "200");
+        assert_eq!(resps[1].status.code, "200");
         assert_eq!(
             resps[1]
                 .headers_with_name("content-length")
@@ -181,7 +181,7 @@ mod tests {
             b"Hello, world!\n".as_slice()
         );
 
-        assert_eq!(resps[2].code, "204");
+        assert_eq!(resps[2].status.code, "204");
         assert_eq!(
             resps[2]
                 .headers_with_name("content-length")
