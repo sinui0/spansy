@@ -46,9 +46,10 @@ impl JsonValue {
             }
             JsonValue::Object(v) => {
                 v.span.offset(offset);
-                v.elems.iter_mut().for_each(|(k, v)| {
-                    k.offset(offset);
-                    v.offset(offset);
+                v.elems.iter_mut().for_each(|kv| {
+                    kv.span.offset(offset);
+                    kv.key.offset(offset);
+                    kv.value.offset(offset);
                 })
             }
         }
@@ -95,11 +96,16 @@ impl JsonValue {
     }
 }
 
+/// A key value pair in a JSON object.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub(crate) struct KeyValue {
-    pub(crate) key: JsonKey,
-    pub(crate) value: JsonValue,
+pub struct KeyValue {
+    pub(crate) span: Span<str>,
+
+    /// The key of the pair.
+    pub key: JsonKey,
+    /// The value of the pair.
+    pub value: JsonValue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -142,7 +148,7 @@ pub struct Array {
 pub struct Object {
     pub(crate) span: Span<str>,
     /// The key value pairs of the object.
-    pub elems: Vec<(JsonKey, JsonValue)>,
+    pub elems: Vec<KeyValue>,
 }
 
 impl Array {
@@ -170,7 +176,7 @@ impl Object {
 
         let key = path_iter.next()?;
 
-        let (_, value) = self.elems.iter().find(|(k, _)| k == key)?;
+        let KeyValue { value, .. } = self.elems.iter().find(|kv| kv.key == key)?;
 
         if path_iter.next().is_some() {
             value.get(&path[key.len() + 1..])
@@ -257,6 +263,7 @@ impl_type!(Number, 0);
 impl_type!(String, 0);
 impl_type!(Array, span);
 impl_type!(Object, span);
+impl_type!(KeyValue, span);
 
 #[cfg(test)]
 mod tests {
