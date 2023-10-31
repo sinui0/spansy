@@ -310,18 +310,18 @@ mod tests {
                         </html>";
 
     const TEST_REQUEST2: &[u8] = b"\
-                        GET /info.html HTTP/1.1\n\
-                        Host: tlsnotary.org\n\
-                        User-Agent: client\n\
-                        Content-Length: 4\n\
+                        GET /info.html HTTP/1.1\r\n\
+                        Host: tlsnotary.org\r\n\
+                        User-Agent: client\r\n\
+                        Content-Length: 4\r\n\r\n\
                         ping";
 
     const TEST_RESPONSE2: &[u8] = b"\
-                        HTTP/1.1 200 OK\n\
-                        Server: server\n\
-                        Content-Length: 4\n\
-                        Content-Type: text/plain\n\
-                        Connection: keep-alive\n\n\
+                        HTTP/1.1 200 OK\r\n\
+                        Server: server\r\n\
+                        Content-Length: 4\r\n\
+                        Content-Type: text/plain\r\n\
+                        Connection: keep-alive\r\n\r\n\
                         pong";
 
     #[test]
