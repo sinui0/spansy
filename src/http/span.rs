@@ -13,7 +13,7 @@ pub fn parse_request(src: &[u8]) -> Result<Request, ParseError> {
     parse_request_from_bytes(&Bytes::copy_from_slice(src), 0)
 }
 
-/// Parses an HTTP request from a `Bytes` buffer.
+/// Parses an HTTP request from a `Bytes` buffer starting from the `offset`.
 pub(crate) fn parse_request_from_bytes(src: &Bytes, offset: usize) -> Result<Request, ParseError> {
     let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
 
@@ -69,7 +69,7 @@ pub(crate) fn parse_request_from_bytes(src: &Bytes, offset: usize) -> Result<Req
     // httparse allocates a new buffer to store the method for performance reasons,
     // so we have to search for the span in the source. This is quick as the method
     // is at the front.
-    let method = src
+    let method = src[offset..]
         .windows(method.len())
         .find(|w| *w == method.as_bytes())
         .expect("method is present");
@@ -112,7 +112,7 @@ pub fn parse_response(src: &[u8]) -> Result<Response, ParseError> {
     parse_response_from_bytes(&Bytes::copy_from_slice(src), 0)
 }
 
-/// Parses an HTTP response from a `Bytes` buffer.
+/// Parses an HTTP response from a `Bytes` buffer starting from the `offset`.
 pub(crate) fn parse_response_from_bytes(
     src: &Bytes,
     offset: usize,
@@ -309,6 +309,21 @@ mod tests {
                         </body>\n\
                         </html>";
 
+    const TEST_REQUEST2: &[u8] = b"\
+                        GET /info.html HTTP/1.1\r\n\
+                        Host: tlsnotary.org\r\n\
+                        User-Agent: client\r\n\
+                        Content-Length: 4\r\n\r\n\
+                        ping";
+
+    const TEST_RESPONSE2: &[u8] = b"\
+                        HTTP/1.1 200 OK\r\n\
+                        Server: server\r\n\
+                        Content-Length: 4\r\n\
+                        Content-Type: text/plain\r\n\
+                        Connection: keep-alive\r\n\r\n\
+                        pong";
+
     #[test]
     fn test_parse_request() {
         let req = parse_request(TEST_REQUEST).unwrap();
@@ -334,6 +349,63 @@ mod tests {
     #[test]
     fn test_parse_response() {
         let res = parse_response(TEST_RESPONSE).unwrap();
+
+        assert_eq!(res.span(), TEST_RESPONSE);
+        assert_eq!(res.status.code, "200");
+        assert_eq!(res.status.reason, "OK");
+        assert_eq!(
+            res.headers_with_name("Server").next().unwrap().value.span(),
+            b"Apache/2.2.14 (Win32)".as_slice()
+        );
+        assert_eq!(
+            res.headers_with_name("Connection")
+                .next()
+                .unwrap()
+                .value
+                .span(),
+            b"Closed".as_slice()
+        );
+        assert_eq!(
+            res.body.unwrap().span(),
+            b"<html>\n<body>\n<h1>Hello, World!</h1>\n</body>\n</html>".as_slice()
+        );
+    }
+
+    // Make sure the first request is not parsed.
+    #[test]
+    fn test_parse_request_from_bytes() {
+        let mut request = Vec::new();
+        request.extend(TEST_REQUEST2);
+        request.extend(TEST_REQUEST);
+        let request = Bytes::copy_from_slice(&request);
+        let req = parse_request_from_bytes(&request, TEST_REQUEST2.len()).unwrap();
+
+        assert_eq!(req.span(), TEST_REQUEST);
+        assert_eq!(req.request.method, "GET");
+        assert_eq!(
+            req.headers_with_name("Host").next().unwrap().value.span(),
+            b"developer.mozilla.org".as_slice()
+        );
+        assert_eq!(
+            req.headers_with_name("User-Agent")
+                .next()
+                .unwrap()
+                .value
+                .span(),
+            b"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:50.0) Gecko/20100101 Firefox/50.0"
+                .as_slice()
+        );
+        assert_eq!(req.body.unwrap().span(), b"Hello World!".as_slice());
+    }
+
+    // Make sure the first response is not parsed.
+    #[test]
+    fn test_parse_response_from_bytes() {
+        let mut response = Vec::new();
+        response.extend(TEST_RESPONSE2);
+        response.extend(TEST_RESPONSE);
+        let response = Bytes::copy_from_slice(&response);
+        let res = parse_response_from_bytes(&response, TEST_RESPONSE2.len()).unwrap();
 
         assert_eq!(res.span(), TEST_RESPONSE);
         assert_eq!(res.status.code, "200");
