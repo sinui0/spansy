@@ -401,11 +401,11 @@ mod tests {
     // Make sure the first response is not parsed.
     #[test]
     fn test_parse_response_from_bytes() {
-        let mut request = Vec::new();
-        request.extend(TEST_RESPONSE2);
-        request.extend(TEST_RESPONSE);
-        let request = Bytes::copy_from_slice(&request);
-        let res = parse_response_from_bytes(&request, TEST_RESPONSE2.len()).unwrap();
+        let mut response = Vec::new();
+        response.extend(TEST_RESPONSE2);
+        response.extend(TEST_RESPONSE);
+        let response = Bytes::copy_from_slice(&response);
+        let res = parse_response_from_bytes(&response, TEST_RESPONSE2.len()).unwrap();
 
         assert_eq!(res.span(), TEST_RESPONSE);
         assert_eq!(res.code, "200");
