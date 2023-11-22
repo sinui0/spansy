@@ -1,16 +1,13 @@
 use bytes::Bytes;
 use pest::{iterators::Pair as PestPair, Parser};
+use pest_grammars::json::{JsonParser, Rule};
 use types::KeyValue;
 
 use super::types::{self, JsonValue};
 
 use crate::{ParseError, Span};
 
-#[derive(pest_derive::Parser)]
-#[grammar = "json/json.pest"]
-struct JsonParser;
-
-/// Parse a JSON value from a source string.
+/// Parse a JSON value from a source string containing JSON text.
 pub fn parse_str(src: &str) -> Result<JsonValue, ParseError> {
     let src = Bytes::copy_from_slice(src.as_bytes());
 
@@ -18,44 +15,42 @@ pub fn parse_str(src: &str) -> Result<JsonValue, ParseError> {
     // `src` was passed as a string slice, so it is guaranteed to be valid UTF-8.
     let src_str = unsafe { std::str::from_utf8_unchecked(src.as_ref()) };
 
-    let value = JsonParser::parse(Rule::value, src_str)?
+    // A pest pair matching the `json` rule.
+    let json = JsonParser::parse(Rule::json, src_str)?
         .next()
         .ok_or_else(|| ParseError("no json value is present in source".to_string()))?;
 
-    // Since json.pest grammar prohibits leading characters but allows trailing
-    // characters, we prohibit trailing characters here.
-    if value.as_str().len() != src.len() {
-        return Err(ParseError(
-            "trailing characters are present in source".to_string(),
-        ));
-    }
+    // A pest pair matching the `value` rule.
+    let value = json
+        .into_inner()
+        .next()
+        .ok_or_else(|| ParseError("no json value is present in source".to_string()))?;
 
-    Ok(JsonValue::from_pair(src.clone(), value))
+    Ok(JsonValue::from_value_pair(src.clone(), value))
 }
 
-/// Parse a JSON value from a byte slice.
+/// Parse a JSON value from a byte slice containing JSON text.
 pub fn parse_slice(src: &[u8]) -> Result<JsonValue, ParseError> {
     let src = Bytes::copy_from_slice(src);
     parse(src)
 }
 
-/// Parse a JSON value from source bytes.
+/// Parse a JSON value from source bytes containing JSON text.
 pub fn parse(src: Bytes) -> Result<JsonValue, ParseError> {
     let src_str = std::str::from_utf8(&src)?;
 
-    let value = JsonParser::parse(Rule::value, src_str)?
+    // A pest pair matching the `json` rule
+    let json = JsonParser::parse(Rule::json, src_str)?
         .next()
         .ok_or_else(|| ParseError("no json value is present in source".to_string()))?;
 
-    // Since json.pest grammar prohibits leading characters but allows trailing
-    // characters, we prohibit trailing characters here.
-    if value.as_str().len() != src.len() {
-        return Err(ParseError(
-            "trailing characters are present in source".to_string(),
-        ));
-    }
+    // A pest pair matching the `value` rule
+    let value = json
+        .into_inner()
+        .next()
+        .ok_or_else(|| ParseError("no json value is present in source".to_string()))?;
 
-    Ok(JsonValue::from_pair(src.clone(), value))
+    Ok(JsonValue::from_value_pair(src.clone(), value))
 }
 
 macro_rules! impl_from_pair {
@@ -70,11 +65,21 @@ macro_rules! impl_from_pair {
     };
 }
 
-impl_from_pair!(types::JsonKey, string);
 impl_from_pair!(types::Number, number);
 impl_from_pair!(types::Bool, bool);
 impl_from_pair!(types::Null, null);
-impl_from_pair!(types::String, string);
+
+impl types::JsonKey {
+    fn from_pair(src: Bytes, pair: PestPair<'_, Rule>) -> Self {
+        assert!(matches!(pair.as_rule(), Rule::string));
+
+        let s = pair.as_str();
+        assert!(s.starts_with('\"') && s.ends_with('\"'));
+
+        // Make sure the surrounding quotes are not included in the span.
+        Self(Span::new_from_str(src, &s[1..s.len() - 1]))
+    }
+}
 
 impl types::KeyValue {
     fn from_pair(src: Bytes, pair: PestPair<'_, Rule>) -> Self {
@@ -90,7 +95,7 @@ impl types::KeyValue {
         Self {
             span,
             key: types::JsonKey::from_pair(src.clone(), key),
-            value: types::JsonValue::from_pair(src.clone(), value),
+            value: types::JsonValue::from_value_pair(src.clone(), value),
         }
     }
 }
@@ -117,21 +122,37 @@ impl types::Array {
             span: Span::new_from_str(src.clone(), pair.as_str()),
             elems: pair
                 .into_inner()
-                .map(|pair| types::JsonValue::from_pair(src.clone(), pair))
+                .map(|pair| types::JsonValue::from_value_pair(src.clone(), pair))
                 .collect(),
         }
     }
 }
 
-impl types::JsonValue {
+impl types::String {
     fn from_pair(src: Bytes, pair: PestPair<'_, Rule>) -> Self {
-        match pair.as_rule() {
-            Rule::object => Self::Object(types::Object::from_pair(src, pair)),
-            Rule::array => Self::Array(types::Array::from_pair(src, pair)),
-            Rule::string => Self::String(types::String::from_pair(src, pair)),
-            Rule::number => Self::Number(types::Number::from_pair(src, pair)),
-            Rule::bool => Self::Bool(types::Bool::from_pair(src, pair)),
-            Rule::null => Self::Null(types::Null::from_pair(src, pair)),
+        assert!(matches!(pair.as_rule(), Rule::string));
+
+        let s = pair.as_str();
+        assert!(s.starts_with('\"') && s.ends_with('\"'));
+
+        // Make sure the surrounding quotes are not included in the span.
+        Self(Span::new_from_str(src, &s[1..s.len() - 1]))
+    }
+}
+
+impl types::JsonValue {
+    /// Creates a JSON value from a pest `pair` which matched the `value` rule.
+    fn from_value_pair(src: Bytes, pair: PestPair<'_, Rule>) -> Self {
+        // The grammar guarantees that there always is exactly one inner pair.
+        let inner_pair = pair.into_inner().next().unwrap();
+
+        match inner_pair.as_rule() {
+            Rule::object => Self::Object(types::Object::from_pair(src, inner_pair)),
+            Rule::array => Self::Array(types::Array::from_pair(src, inner_pair)),
+            Rule::string => Self::String(types::String::from_pair(src, inner_pair)),
+            Rule::number => Self::Number(types::Number::from_pair(src, inner_pair)),
+            Rule::bool => Self::Bool(types::Bool::from_pair(src, inner_pair)),
+            Rule::null => Self::Null(types::Null::from_pair(src, inner_pair)),
             rule => unreachable!("unexpected matched rule: {:?}", rule),
         }
     }
@@ -152,20 +173,5 @@ mod tests {
         assert_eq!(value.get("baz").unwrap().span(), "123");
         assert_eq!(value.get("quux.a").unwrap().span(), "b");
         assert_eq!(value.get("arr").unwrap().span(), "[1, 2, 3]");
-    }
-
-    #[test]
-    fn test_err_leading_characters() {
-        let src = " {\"foo\": \"bar\"}";
-        assert!(parse_str(src).is_err());
-    }
-
-    #[test]
-    fn test_err_trailing_characters() {
-        let src = "{\"foo\": \"bar\"} ";
-        assert_eq!(
-            parse_str(src).err().unwrap().to_string(),
-            "parsing error: trailing characters are present in source"
-        );
     }
 }
