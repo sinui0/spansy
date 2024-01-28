@@ -96,7 +96,7 @@ impl<T: ?Sized> Span<T> {
         self.data
     }
 
-    /// Returns the range of the span within the source bytes.
+    /// Returns the indices within the source data.
     pub fn indices(&self) -> &RangeSet<usize> {
         &self.indices
     }
@@ -113,11 +113,11 @@ impl<T: ?Sized> Span<T> {
         self.indices.is_empty()
     }
 
-    /// Shifts the span range by the given offset.
+    /// Shifts the span indices by the given offset.
     ///
     /// # Panics
     ///
-    /// Panics if the offset causes the range to overflow `usize::MAX`.
+    /// Panics if the offset causes the indices to overflow `usize::MAX`.
     pub fn offset(&mut self, offset: usize) {
         self.indices.shift_right(&offset);
     }
