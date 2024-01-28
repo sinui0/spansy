@@ -48,22 +48,7 @@ pub(crate) fn parse_request_from_bytes(src: &Bytes, offset: usize) -> Result<Req
     let headers = headers
         .iter()
         .take_while(|h| *h != &httparse::EMPTY_HEADER)
-        .map(|h| {
-            let name = HeaderName(Span::new_str(
-                src.clone(),
-                get_span_range(src, h.name.as_bytes()),
-            ));
-
-            let value = HeaderValue(Span::new_bytes(src.clone(), get_span_range(src, h.value)));
-
-            // Add 2 to the end of the range to account for the terminating \r\n.
-            let header_range = name.0.range.start..value.0.range.end + 2;
-            Header {
-                span: Span::new_bytes(src.clone(), header_range),
-                name,
-                value,
-            }
-        })
+        .map(|header| from_header(src, header))
         .collect();
 
     // httparse allocates a new buffer to store the method for performance reasons,
@@ -151,22 +136,7 @@ pub(crate) fn parse_response_from_bytes(
     let headers = headers
         .iter()
         .take_while(|h| *h != &httparse::EMPTY_HEADER)
-        .map(|h| {
-            let name = HeaderName(Span::new_str(
-                src.clone(),
-                get_span_range(src, h.name.as_bytes()),
-            ));
-
-            let value = HeaderValue(Span::new_bytes(src.clone(), get_span_range(src, h.value)));
-
-            // Add 2 to the end of the range to include CRLF.
-            let header_range = name.0.range.start..value.0.range.end + 2;
-            Header {
-                span: Span::new_bytes(src.clone(), header_range),
-                name,
-                value,
-            }
-        })
+        .map(|header| from_header(src, header))
         .collect();
 
     // httparse doesn't preserve the response code span, so we find it.
@@ -206,6 +176,20 @@ pub(crate) fn parse_response_from_bytes(
     }
 
     Ok(response)
+}
+
+/// Converts a `httparse::Header` to a `Header`.
+fn from_header(src: &Bytes, header: &httparse::Header) -> Header {
+    let name_range = get_span_range(src, header.name.as_bytes());
+    let value_range = get_span_range(src, header.value);
+    // Add 2 to the end of the range to account for the terminating \r\n.
+    let header_range = name_range.start..value_range.end + 2;
+
+    Header {
+        span: Span::new_bytes(src.clone(), header_range),
+        name: HeaderName(Span::new_str(src.clone(), name_range)),
+        value: HeaderValue(Span::new_bytes(src.clone(), value_range)),
+    }
 }
 
 /// Calculates the length of the request body according to RFC 9112, section 6.

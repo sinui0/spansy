@@ -10,6 +10,9 @@ use bytes::Bytes;
 pub(crate) mod helpers;
 pub mod http;
 pub mod json;
+mod range;
+
+pub use range::SourceRange;
 
 /// A parsing error.
 #[derive(Debug, thiserror::Error)]
@@ -38,8 +41,10 @@ pub trait Spanned<T: ?Sized = [u8]> {
 #[derive(PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Span<T: ?Sized = [u8]> {
+    /// The original source bytes from when the span was parsed.
     pub(crate) data: Bytes,
-    pub(crate) range: Range<usize>,
+    /// The range within the source bytes.
+    pub(crate) range: SourceRange,
     _pd: PhantomData<T>,
 }
 
@@ -92,9 +97,9 @@ impl<T: ?Sized> Span<T> {
         self.data
     }
 
-    /// Returns the corresponding range within the source string.
-    pub fn range(&self) -> Range<usize> {
-        self.range.clone()
+    /// Returns the range of the span within the source bytes.
+    pub fn range(&self) -> &SourceRange {
+        &self.range
     }
 
     /// Returns the length of the span in bytes.
@@ -110,9 +115,12 @@ impl<T: ?Sized> Span<T> {
     }
 
     /// Shifts the span range by the given offset.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the offset causes the range to overflow `usize::MAX`.
     pub fn offset(&mut self, offset: usize) {
-        self.range.start += offset;
-        self.range.end += offset;
+        self.range.offset(offset);
     }
 }
 
@@ -131,7 +139,7 @@ impl Span<str> {
 
         Self {
             data: src.slice(range.clone()),
-            range,
+            range: SourceRange::Range(range),
             _pd: PhantomData,
         }
     }
@@ -146,7 +154,7 @@ impl Span<str> {
 
         Self {
             data: src.slice(range.clone()),
-            range,
+            range: SourceRange::Range(range),
             _pd: PhantomData,
         }
     }
@@ -188,7 +196,7 @@ impl Span<[u8]> {
 
         Self {
             data: src.slice(range.clone()),
-            range,
+            range: SourceRange::Range(range),
             _pd: PhantomData,
         }
     }
@@ -273,7 +281,7 @@ impl PartialEq<str> for &Span<str> {
     }
 }
 
-impl PartialEq<Range<usize>> for Span<str> {
+impl<T: ?Sized> PartialEq<Range<usize>> for Span<T> {
     fn eq(&self, other: &Range<usize>) -> bool {
         &self.range == other
     }
@@ -281,18 +289,18 @@ impl PartialEq<Range<usize>> for Span<str> {
 
 impl<T: ?Sized> PartialEq<Span<T>> for Range<usize> {
     fn eq(&self, other: &Span<T>) -> bool {
-        self == &other.range
+        other == self
     }
 }
 
 impl<T: ?Sized> PartialEq<Range<usize>> for &Span<T> {
     fn eq(&self, other: &Range<usize>) -> bool {
-        &self.range == other
+        *self == other
     }
 }
 
 impl<T: ?Sized> PartialEq<Span<T>> for &Range<usize> {
     fn eq(&self, other: &Span<T>) -> bool {
-        **self == other.range
+        other == *self
     }
 }
