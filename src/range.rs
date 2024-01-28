@@ -6,6 +6,7 @@ use utils::range::{RangeSet, RangeUnion};
 ///
 /// This can be either a contiguous range or a range set.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SourceRange {
     /// A contiguous range.
     Range(Range<usize>),
