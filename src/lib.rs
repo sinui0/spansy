@@ -10,9 +10,8 @@ use bytes::Bytes;
 pub(crate) mod helpers;
 pub mod http;
 pub mod json;
-mod range;
 
-pub use range::{SourceRange, SourceRangeIter, SourceRangesIter};
+use utils::range::RangeSet;
 
 /// A parsing error.
 #[derive(Debug, thiserror::Error)]
@@ -43,8 +42,8 @@ pub trait Spanned<T: ?Sized = [u8]> {
 pub struct Span<T: ?Sized = [u8]> {
     /// The original source bytes from when the span was parsed.
     pub(crate) data: Bytes,
-    /// The range within the source bytes.
-    pub(crate) range: SourceRange,
+    /// The set of indices within the source data.
+    pub(crate) indices: RangeSet<usize>,
     _pd: PhantomData<T>,
 }
 
@@ -52,7 +51,7 @@ impl Clone for Span<[u8]> {
     fn clone(&self) -> Self {
         Self {
             data: self.data.clone(),
-            range: self.range.clone(),
+            indices: self.indices.clone(),
             _pd: PhantomData,
         }
     }
@@ -62,7 +61,7 @@ impl Clone for Span<str> {
     fn clone(&self) -> Self {
         Self {
             data: self.data.clone(),
-            range: self.range.clone(),
+            indices: self.indices.clone(),
             _pd: PhantomData,
         }
     }
@@ -72,7 +71,7 @@ impl Debug for Span<[u8]> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Span")
             .field("span", &self.as_bytes())
-            .field("range", &self.range)
+            .field("range", &self.indices)
             .finish()
     }
 }
@@ -81,7 +80,7 @@ impl Debug for Span<str> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Span")
             .field("span", &self.as_str())
-            .field("range", &self.range)
+            .field("range", &self.indices)
             .finish()
     }
 }
@@ -98,20 +97,20 @@ impl<T: ?Sized> Span<T> {
     }
 
     /// Returns the range of the span within the source bytes.
-    pub fn range(&self) -> &SourceRange {
-        &self.range
+    pub fn indices(&self) -> &RangeSet<usize> {
+        &self.indices
     }
 
     /// Returns the length of the span in bytes.
     ///
     /// Just like `str::len()`, this is not necessarily the number of characters.
     pub fn len(&self) -> usize {
-        self.range.len()
+        self.indices.len()
     }
 
     /// Returns `true` if the span is empty.
     pub fn is_empty(&self) -> bool {
-        self.range.is_empty()
+        self.indices.is_empty()
     }
 
     /// Shifts the span range by the given offset.
@@ -120,7 +119,7 @@ impl<T: ?Sized> Span<T> {
     ///
     /// Panics if the offset causes the range to overflow `usize::MAX`.
     pub fn offset(&mut self, offset: usize) {
-        self.range.offset(offset);
+        self.indices.shift_right(&offset);
     }
 }
 
@@ -139,7 +138,7 @@ impl Span<str> {
 
         Self {
             data: src.slice(range.clone()),
-            range: SourceRange::Range(range),
+            indices: range.into(),
             _pd: PhantomData,
         }
     }
@@ -154,7 +153,7 @@ impl Span<str> {
 
         Self {
             data: src.slice(range.clone()),
-            range: SourceRange::Range(range),
+            indices: range.into(),
             _pd: PhantomData,
         }
     }
@@ -196,7 +195,7 @@ impl Span<[u8]> {
 
         Self {
             data: src.slice(range.clone()),
-            range: SourceRange::Range(range),
+            indices: range.into(),
             _pd: PhantomData,
         }
     }
@@ -217,7 +216,7 @@ impl From<Span<str>> for Span<[u8]> {
     fn from(span: Span<str>) -> Self {
         Self {
             data: span.data,
-            range: span.range,
+            indices: span.indices,
             _pd: PhantomData,
         }
     }
@@ -227,7 +226,7 @@ impl From<&Span<str>> for Span<[u8]> {
     fn from(span: &Span<str>) -> Self {
         Self {
             data: span.data.clone(),
-            range: span.range.clone(),
+            indices: span.indices.clone(),
             _pd: PhantomData,
         }
     }
@@ -283,7 +282,7 @@ impl PartialEq<str> for &Span<str> {
 
 impl<T: ?Sized> PartialEq<Range<usize>> for Span<T> {
     fn eq(&self, other: &Range<usize>) -> bool {
-        &self.range == other
+        &self.indices == other
     }
 }
 
