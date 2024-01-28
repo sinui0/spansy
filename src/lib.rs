@@ -12,7 +12,7 @@ pub mod http;
 pub mod json;
 mod range;
 
-pub use range::SourceRange;
+pub use range::{SourceRange, SourceRangeIter, SourceRangesIter};
 
 /// A parsing error.
 #[derive(Debug, thiserror::Error)]

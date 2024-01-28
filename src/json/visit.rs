@@ -6,7 +6,7 @@ use super::{types, types::JsonValue};
 ///
 /// ```
 /// use spansy::json::{parse_str, Number, JsonVisit};
-/// use spansy::Spanned;
+/// use spansy::{Spanned, SourceRange};
 ///
 /// struct DigitReplacer<'a, 'b> {
 ///     src: &'a mut String,
@@ -16,8 +16,10 @@ use super::{types, types::JsonValue};
 /// impl<'a> JsonVisit for DigitReplacer<'a, '_> {
 ///     fn visit_number(&mut self, node: &Number) {
 ///         let span = node.span();
-///         let replacement = self.digit.repeat(span.len());
-///         self.src.replace_range(node.span().range(), &replacement);
+///         for range in span.range().iter_ranges() {
+///             let replacement = self.digit.repeat(range.len());
+///             self.src.replace_range(range, &replacement);
+///         }
 ///     }
 /// }
 ///

@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use utils::range::{RangeSet, RangeUnion};
+use utils::range::{RangeIter, RangeSet, RangeSetIter, RangeUnion};
 
 /// A range within the source bytes.
 ///
@@ -15,6 +15,28 @@ pub enum SourceRange {
 }
 
 impl SourceRange {
+    /// Returns an iterator over the indices of the range.
+    pub fn iter(&self) -> SourceRangeIter<'_> {
+        match self {
+            Self::Range(range) => SourceRangeIter(SourceRangeIterInner::Range(range.clone())),
+            Self::RangeSet(range_set) => {
+                SourceRangeIter(SourceRangeIterInner::RangeSet(range_set.iter()))
+            }
+        }
+    }
+
+    /// Returns an iterator over the ranges of the range.
+    pub fn iter_ranges(&self) -> impl Iterator<Item = Range<usize>> + '_ {
+        match self {
+            Self::Range(range) => {
+                SourceRangesIter(SourceRangesIterInner::Range(Some(range.clone())))
+            }
+            Self::RangeSet(set) => {
+                SourceRangesIter(SourceRangesIterInner::RangeSet(set.iter_ranges()))
+            }
+        }
+    }
+
     /// Returns the number of bytes in the range.
     #[inline]
     pub fn len(&self) -> usize {
@@ -66,6 +88,44 @@ impl SourceRange {
                 right.shift_right(&distance);
                 *set = set.union(&right);
             }
+        }
+    }
+}
+
+/// An iterator over the indices of a source range.
+pub struct SourceRangeIter<'a>(SourceRangeIterInner<'a>);
+
+enum SourceRangeIterInner<'a> {
+    Range(Range<usize>),
+    RangeSet(RangeSetIter<'a, usize>),
+}
+
+impl Iterator for SourceRangeIter<'_> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.0 {
+            SourceRangeIterInner::Range(range) => range.next(),
+            SourceRangeIterInner::RangeSet(set) => set.next(),
+        }
+    }
+}
+
+/// An iterator over the ranges of a source range.
+pub struct SourceRangesIter<'a>(SourceRangesIterInner<'a>);
+
+enum SourceRangesIterInner<'a> {
+    Range(Option<Range<usize>>),
+    RangeSet(RangeIter<'a, usize>),
+}
+
+impl Iterator for SourceRangesIter<'_> {
+    type Item = Range<usize>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.0 {
+            SourceRangesIterInner::Range(range) => range.take(),
+            SourceRangesIterInner::RangeSet(set) => set.next(),
         }
     }
 }
