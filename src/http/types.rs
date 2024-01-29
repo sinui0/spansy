@@ -1,3 +1,5 @@
+use utils::range::{RangeDifference, RangeSet};
+
 use crate::{Span, Spanned};
 
 /// An HTTP header name.
@@ -58,6 +60,11 @@ pub struct Header {
 }
 
 impl Header {
+    /// Returns the indices of the header excluding the value.
+    pub fn without_value(&self) -> RangeSet<usize> {
+        self.span.indices.difference(&self.value.span().indices)
+    }
+
     /// Shifts the span range by the given offset.
     pub fn offset(&mut self, offset: usize) {
         self.span.offset(offset);
@@ -85,6 +92,11 @@ pub struct RequestLine {
 }
 
 impl RequestLine {
+    /// Returns the indices of the request line excluding the path.
+    pub fn without_path(&self) -> RangeSet<usize> {
+        self.span.indices.difference(&self.path.indices)
+    }
+
     /// Shifts the span range by the given offset.
     pub fn offset(&mut self, offset: usize) {
         self.span.offset(offset);
@@ -121,6 +133,18 @@ impl Request {
         self.headers
             .iter()
             .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
+    }
+
+    /// Returns the indices of the request excluding the path, headers and body.
+    pub fn without_data(&self) -> RangeSet<usize> {
+        let mut indices = self.span.indices.difference(&self.request.span.indices);
+        for header in &self.headers {
+            indices = indices.difference(header.span.indices());
+        }
+        if let Some(body) = &self.body {
+            indices = indices.difference(body.span.indices());
+        }
+        indices
     }
 
     /// Shifts the span range by the given offset.
@@ -215,22 +239,24 @@ impl Spanned for Response {
 /// An HTTP request or response body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Body(pub(crate) Span);
+pub struct Body {
+    pub(crate) span: Span,
+}
 
 impl Body {
     /// Returns the body as a byte slice.
     pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
+        self.span.as_bytes()
     }
 
     /// Shifts the span range by the given offset.
     pub fn offset(&mut self, offset: usize) {
-        self.0.offset(offset);
+        self.span.offset(offset);
     }
 }
 
 impl Spanned for Body {
     fn span(&self) -> &Span {
-        &self.0
+        &self.span
     }
 }
