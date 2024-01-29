@@ -86,7 +86,9 @@ pub(crate) fn parse_request_from_bytes(src: &Bytes, offset: usize) -> Result<Req
 
         request.span = Span::new_bytes(src.clone(), offset..range.end);
 
-        request.body = Some(Body(Span::new_bytes(src.clone(), range)));
+        request.body = Some(Body {
+            span: Span::new_bytes(src.clone(), range),
+        });
     }
 
     Ok(request)
@@ -172,7 +174,9 @@ pub(crate) fn parse_response_from_bytes(
 
         response.span = Span::new_bytes(src.clone(), offset..range.end);
 
-        response.body = Some(Body(Span::new_bytes(src.clone(), range)));
+        response.body = Some(Body {
+            span: Span::new_bytes(src.clone(), range),
+        });
     }
 
     Ok(response)
