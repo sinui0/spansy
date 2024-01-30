@@ -2,7 +2,10 @@ use bytes::Bytes;
 
 use crate::{
     helpers::get_span_range,
-    http::{Body, Header, HeaderName, HeaderValue, Request, RequestLine, Response, Status},
+    http::{
+        Body, Code, Header, HeaderName, HeaderValue, Method, Path, Reason, Request, RequestLine,
+        Response, Status,
+    },
     ParseError, Span,
 };
 
@@ -63,8 +66,8 @@ pub(crate) fn parse_request_from_bytes(src: &Bytes, offset: usize) -> Result<Req
         span: Span::new_bytes(src.clone(), offset..head_end),
         request: RequestLine {
             span: Span::new_str(src.clone(), request_line_range),
-            method: Span::new_str(src.clone(), get_span_range(src, method)),
-            path: Span::new_from_str(src.clone(), path),
+            method: Method(Span::new_str(src.clone(), get_span_range(src, method))),
+            path: Path(Span::new_from_str(src.clone(), path)),
         },
         headers,
         body: None,
@@ -151,8 +154,8 @@ pub(crate) fn parse_response_from_bytes(
         span: Span::new_bytes(src.clone(), offset..head_end),
         status: Status {
             span: Span::new_str(src.clone(), status_line_range),
-            code: Span::new_str(src.clone(), get_span_range(src, code)),
-            reason: Span::new_from_str(src.clone(), reason),
+            code: Code(Span::new_str(src.clone(), get_span_range(src, code))),
+            reason: Reason(Span::new_from_str(src.clone(), reason)),
         },
         headers,
         body: None,
@@ -317,7 +320,7 @@ mod tests {
         let req = parse_request(TEST_REQUEST).unwrap();
 
         assert_eq!(req.span(), TEST_REQUEST);
-        assert_eq!(req.request.method, "GET");
+        assert_eq!(req.request.method.as_str(), "GET");
         assert_eq!(
             req.headers_with_name("Host").next().unwrap().value.span(),
             b"developer.mozilla.org".as_slice()
@@ -339,8 +342,8 @@ mod tests {
         let res = parse_response(TEST_RESPONSE).unwrap();
 
         assert_eq!(res.span(), TEST_RESPONSE);
-        assert_eq!(res.status.code, "200");
-        assert_eq!(res.status.reason, "OK");
+        assert_eq!(res.status.code.as_str(), "200");
+        assert_eq!(res.status.reason.as_str(), "OK");
         assert_eq!(
             res.headers_with_name("Server").next().unwrap().value.span(),
             b"Apache/2.2.14 (Win32)".as_slice()
@@ -369,7 +372,7 @@ mod tests {
         let req = parse_request_from_bytes(&request, TEST_REQUEST2.len()).unwrap();
 
         assert_eq!(req.span(), TEST_REQUEST);
-        assert_eq!(req.request.method, "GET");
+        assert_eq!(req.request.method.as_str(), "GET");
         assert_eq!(
             req.headers_with_name("Host").next().unwrap().value.span(),
             b"developer.mozilla.org".as_slice()
@@ -396,8 +399,8 @@ mod tests {
         let res = parse_response_from_bytes(&response, TEST_RESPONSE2.len()).unwrap();
 
         assert_eq!(res.span(), TEST_RESPONSE);
-        assert_eq!(res.status.code, "200");
-        assert_eq!(res.status.reason, "OK");
+        assert_eq!(res.status.code.as_str(), "200");
+        assert_eq!(res.status.reason.as_str(), "OK");
         assert_eq!(
             res.headers_with_name("Server").next().unwrap().value.span(),
             b"Apache/2.2.14 (Win32)".as_slice()

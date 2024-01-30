@@ -79,6 +79,52 @@ impl Spanned for Header {
     }
 }
 
+/// An HTTP request method.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Method(pub(crate) Span<str>);
+
+impl Method {
+    /// Returns the method as a string slice.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Shifts the span range by the given offset.
+    pub fn offset(&mut self, offset: usize) {
+        self.0.offset(offset);
+    }
+}
+
+impl Spanned<str> for Method {
+    fn span(&self) -> &Span<str> {
+        &self.0
+    }
+}
+
+/// An HTTP request path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Path(pub(crate) Span<str>);
+
+impl Path {
+    /// Returns the path as a string slice.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Shifts the span range by the given offset.
+    pub fn offset(&mut self, offset: usize) {
+        self.0.offset(offset);
+    }
+}
+
+impl Spanned<str> for Path {
+    fn span(&self) -> &Span<str> {
+        &self.0
+    }
+}
+
 /// An HTTP request line.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -86,15 +132,15 @@ pub struct RequestLine {
     pub(crate) span: Span<str>,
 
     /// The request method.
-    pub method: Span<str>,
+    pub method: Method,
     /// The request path.
-    pub path: Span<str>,
+    pub path: Path,
 }
 
 impl RequestLine {
     /// Returns the indices of the request line excluding the path.
     pub fn without_path(&self) -> RangeSet<usize> {
-        self.span.indices.difference(&self.path.indices)
+        self.span.indices.difference(&self.path.0.indices)
     }
 
     /// Shifts the span range by the given offset.
@@ -166,6 +212,52 @@ impl Spanned for Request {
     }
 }
 
+/// An HTTP response code.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Code(pub(crate) Span<str>);
+
+impl Code {
+    /// Returns the response code as a string slice.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Shifts the span range by the given offset.
+    pub fn offset(&mut self, offset: usize) {
+        self.0.offset(offset);
+    }
+}
+
+impl Spanned<str> for Code {
+    fn span(&self) -> &Span<str> {
+        &self.0
+    }
+}
+
+/// An HTTP response reason phrase.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Reason(pub(crate) Span<str>);
+
+impl Reason {
+    /// Returns the response reason phrase as a string slice.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Shifts the span range by the given offset.
+    pub fn offset(&mut self, offset: usize) {
+        self.0.offset(offset);
+    }
+}
+
+impl Spanned<str> for Reason {
+    fn span(&self) -> &Span<str> {
+        &self.0
+    }
+}
+
 /// An HTTP response status.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -173,9 +265,9 @@ pub struct Status {
     pub(crate) span: Span<str>,
 
     /// The response code.
-    pub code: Span<str>,
+    pub code: Code,
     /// The reason phrase.
-    pub reason: Span<str>,
+    pub reason: Reason,
 }
 
 impl Status {
