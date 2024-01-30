@@ -92,13 +92,10 @@ pub(crate) fn parse_request_from_bytes(src: &Bytes, offset: usize) -> Result<Req
         let content_type = request
             .headers_with_name("Content-Type")
             .next()
-            .ok_or_else(|| ParseError("Content-Type header missing".to_string()))?;
+            .map(|header| header.value.as_bytes())
+            .unwrap_or_default();
 
-        request.body = Some(parse_body(
-            src,
-            range.clone(),
-            content_type.value.as_bytes(),
-        )?);
+        request.body = Some(parse_body(src, range.clone(), content_type)?);
         request.span = Span::new_bytes(src.clone(), offset..range.end);
     }
 
@@ -186,13 +183,10 @@ pub(crate) fn parse_response_from_bytes(
         let content_type = response
             .headers_with_name("Content-Type")
             .next()
-            .ok_or_else(|| ParseError("Content-Type header missing".to_string()))?;
+            .map(|header| header.value.as_bytes())
+            .unwrap_or_default();
 
-        response.body = Some(parse_body(
-            src,
-            range.clone(),
-            content_type.value.as_bytes(),
-        )?);
+        response.body = Some(parse_body(src, range.clone(), content_type)?);
         response.span = Span::new_bytes(src.clone(), offset..range.end);
     }
 
