@@ -71,7 +71,7 @@ impl Debug for Span<[u8]> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Span")
             .field("span", &self.as_bytes())
-            .field("range", &self.indices)
+            .field("indices", &self.indices)
             .finish()
     }
 }
@@ -80,7 +80,7 @@ impl Debug for Span<str> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Span")
             .field("span", &self.as_str())
-            .field("range", &self.indices)
+            .field("indices", &self.indices)
             .finish()
     }
 }
