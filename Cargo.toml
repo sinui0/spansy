@@ -18,4 +18,4 @@ pest_derive = { version = "2.7" }
 serde = { version = "1.0", features = ["derive"], optional = true }
 thiserror = "1.0"
 
-tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils/", rev = "c9a8c0b" }
+tlsn-utils = { git = "https://github.com/tlsnotary/tlsn-utils/", rev = "def9af0" }

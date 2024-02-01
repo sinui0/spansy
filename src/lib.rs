@@ -11,7 +11,7 @@ pub(crate) mod helpers;
 pub mod http;
 pub mod json;
 
-use utils::range::RangeSet;
+use utils::range::{RangeSet, ToRangeSet};
 
 /// A parsing error.
 #[derive(Debug, thiserror::Error)]
@@ -70,7 +70,7 @@ impl Clone for Span<str> {
 impl Debug for Span<[u8]> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Span")
-            .field("span", &self.as_bytes())
+            .field("span", &self.as_slice())
             .field("indices", &self.indices)
             .finish()
     }
@@ -85,9 +85,33 @@ impl Debug for Span<str> {
     }
 }
 
+impl<T: ?Sized> AsRef<[u8]> for Span<T> {
+    fn as_ref(&self) -> &[u8] {
+        self.data.as_ref()
+    }
+}
+
+impl<T: ?Sized> AsRef<RangeSet<usize>> for Span<T> {
+    fn as_ref(&self) -> &RangeSet<usize> {
+        &self.indices
+    }
+}
+
+impl<T: ?Sized> Into<Bytes> for Span<T> {
+    fn into(self) -> Bytes {
+        self.data
+    }
+}
+
+impl<T: ?Sized> Into<RangeSet<usize>> for Span<T> {
+    fn into(self) -> RangeSet<usize> {
+        self.indices
+    }
+}
+
 impl<T: ?Sized> Span<T> {
     /// Returns a reference to the span data.
-    pub fn data(&self) -> &[u8] {
+    pub fn as_slice(&self) -> &[u8] {
         self.data.as_ref()
     }
 
@@ -160,7 +184,10 @@ impl Span<str> {
 
     /// Converts this type to a string slice.
     pub fn as_str(&self) -> &str {
-        self.as_ref()
+        // # Safety
+        // The span is guaranteed to be a valid UTF-8 string because it is not
+        // possible to create a `Span<str>` from a non-UTF-8 string.
+        unsafe { std::str::from_utf8_unchecked(&self.data) }
     }
 
     /// Returns the corresponding byte span.
@@ -171,16 +198,7 @@ impl Span<str> {
 
 impl AsRef<str> for Span<str> {
     fn as_ref(&self) -> &str {
-        // # Safety
-        // The span is guaranteed to be a valid UTF-8 string because it is not
-        // possible to create a `Span<str>` from a non-UTF-8 string.
-        unsafe { std::str::from_utf8_unchecked(&self.data) }
-    }
-}
-
-impl AsRef<[u8]> for Span<str> {
-    fn as_ref(&self) -> &[u8] {
-        self.data.as_ref()
+        self.as_str()
     }
 }
 
@@ -198,17 +216,6 @@ impl Span<[u8]> {
             indices: range.into(),
             _pd: PhantomData,
         }
-    }
-
-    /// Converts this type to a byte slice.
-    pub fn as_bytes(&self) -> &[u8] {
-        self.as_ref()
-    }
-}
-
-impl AsRef<[u8]> for Span<[u8]> {
-    fn as_ref(&self) -> &[u8] {
-        self.data.as_ref()
     }
 }
 
@@ -232,27 +239,33 @@ impl From<&Span<str>> for Span<[u8]> {
     }
 }
 
-impl PartialEq<Span> for [u8] {
-    fn eq(&self, other: &Span) -> bool {
-        self == other.as_ref()
+impl<T: ?Sized> ToRangeSet<usize> for Span<T> {
+    fn to_range_set(&self) -> RangeSet<usize> {
+        self.indices.clone()
     }
 }
 
-impl PartialEq<[u8]> for Span {
+impl<T: ?Sized> PartialEq<Span<T>> for [u8] {
+    fn eq(&self, other: &Span<T>) -> bool {
+        self == other.data
+    }
+}
+
+impl<T: ?Sized> PartialEq<[u8]> for Span<T> {
     fn eq(&self, other: &[u8]) -> bool {
-        self.as_ref() == other
+        self.data == other
     }
 }
 
-impl PartialEq<&[u8]> for Span {
+impl<T: ?Sized> PartialEq<&[u8]> for Span<T> {
     fn eq(&self, other: &&[u8]) -> bool {
-        self.as_ref() == *other
+        self.data == *other
     }
 }
 
-impl PartialEq<[u8]> for &Span {
+impl<T: ?Sized> PartialEq<[u8]> for &Span<T> {
     fn eq(&self, other: &[u8]) -> bool {
-        self.as_ref() == other
+        self.data == other
     }
 }
 

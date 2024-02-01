@@ -225,7 +225,7 @@ fn request_body_len(request: &Request) -> Result<usize, ParseError> {
     } else if let Some(h) = request.headers_with_name("Content-Length").next() {
         // If a valid Content-Length header field is present without Transfer-Encoding, its decimal value
         // defines the expected message body length in octets.
-        std::str::from_utf8(h.value.0.as_bytes())?
+        std::str::from_utf8(h.value.0.as_slice())?
             .parse::<usize>()
             .map_err(|err| ParseError(format!("failed to parse Content-Length value: {err}")))
     } else {
@@ -261,7 +261,7 @@ fn response_body_len(response: &Response) -> Result<usize, ParseError> {
     } else if let Some(h) = response.headers_with_name("Content-Length").next() {
         // If a valid Content-Length header field is present without Transfer-Encoding, its decimal value
         // defines the expected message body length in octets.
-        std::str::from_utf8(h.value.0.as_bytes())?
+        std::str::from_utf8(h.value.0.as_slice())?
             .parse::<usize>()
             .map_err(|err| ParseError(format!("failed to parse Content-Length value: {err}")))
     } else {
@@ -363,6 +363,7 @@ mod tests {
 
         assert_eq!(req.span(), TEST_REQUEST);
         assert_eq!(req.request.method.as_str(), "GET");
+
         assert_eq!(
             req.headers_with_name("Host").next().unwrap().value.span(),
             b"developer.mozilla.org".as_slice()
