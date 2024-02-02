@@ -219,6 +219,18 @@ impl Response {
             .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
     }
 
+    /// Returns the indices of the response excluding the headers and body.
+    pub fn without_data(&self) -> RangeSet<usize> {
+        let mut indices = self.span.indices.clone();
+        for header in &self.headers {
+            indices = indices.difference(header.span.indices());
+        }
+        if let Some(body) = &self.body {
+            indices = indices.difference(body.span.indices());
+        }
+        indices
+    }
+
     /// Shifts the span range by the given offset.
     pub fn offset(&mut self, offset: usize) {
         self.span.offset(offset);
