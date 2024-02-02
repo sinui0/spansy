@@ -48,7 +48,7 @@ impl Spanned for HeaderValue {
     }
 }
 
-/// An HTTP header.
+/// An HTTP header, including the trailing CRLF.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Header {
@@ -79,7 +79,7 @@ impl Spanned for Header {
     }
 }
 
-/// An HTTP request line.
+/// An HTTP request line, including the trailing CRLF.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RequestLine {

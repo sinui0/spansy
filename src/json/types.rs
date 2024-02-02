@@ -200,7 +200,7 @@ impl Index<usize> for Array {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-/// An object value.
+/// A JSON object value.
 pub struct Object {
     pub(crate) span: Span<str>,
     /// The key value pairs of the object.
