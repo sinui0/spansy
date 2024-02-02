@@ -22,7 +22,7 @@
 //! let bar = value.get("foo.bar").unwrap();
 //!
 //! // The span of the `bar` array is 16..24 within the source string.
-//! assert_eq!(bar.span().range(), 16..24);
+//! assert_eq!(bar.span().indices(), 16..24);
 //! ```
 
 mod span;
