@@ -48,7 +48,7 @@ impl Spanned for HeaderValue {
     }
 }
 
-/// An HTTP header, including the trailing CRLF.
+/// An HTTP header, including optional whitespace and the trailing CRLF.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Header {
@@ -61,6 +61,8 @@ pub struct Header {
 
 impl Header {
     /// Returns the indices of the header excluding the value.
+    ///
+    /// The indices will include any optional whitespace and the CRLF.
     pub fn without_value(&self) -> RangeSet<usize> {
         self.span.indices.difference(&self.value.span().indices)
     }
