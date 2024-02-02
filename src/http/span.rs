@@ -182,8 +182,14 @@ pub(crate) fn parse_response_from_bytes(
 fn from_header(src: &Bytes, header: &httparse::Header) -> Header {
     let name_range = get_span_range(src, header.name.as_bytes());
     let value_range = get_span_range(src, header.value);
-    // Add 2 to the end of the range to account for the terminating \r\n.
-    let header_range = name_range.start..value_range.end + 2;
+
+    let crlf_idx = src[value_range.end..]
+        .windows(2)
+        .position(|b| b == b"\r\n")
+        .expect("CRLF is present in a valid header");
+
+    // Capture the entire header including trailing whitespace and the CRLF.
+    let header_range = name_range.start..value_range.end + crlf_idx + 2;
 
     Header {
         span: Span::new_bytes(src.clone(), header_range),
@@ -328,6 +334,14 @@ mod tests {
                 .as_slice()
         );
         assert_eq!(req.body.unwrap().span(), b"Hello World!".as_slice());
+    }
+
+    #[test]
+    fn test_parse_header_trailing_whitespace() {
+        let req = parse_request(b"GET / HTTP/1.1\r\nHost: example.com \r\n\r\n").unwrap();
+        let header = req.headers_with_name("Host").next().unwrap();
+
+        assert_eq!(header.span.as_bytes(), b"Host: example.com \r\n".as_slice());
     }
 
     #[test]
