@@ -137,7 +137,7 @@ impl Request {
 
     /// Returns the indices of the request excluding the path, headers and body.
     pub fn without_data(&self) -> RangeSet<usize> {
-        let mut indices = self.span.indices.difference(&self.request.span.indices);
+        let mut indices = self.span.indices.difference(&self.request.path.indices);
         for header in &self.headers {
             indices = indices.difference(header.span.indices());
         }
