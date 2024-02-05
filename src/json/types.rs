@@ -168,7 +168,7 @@ impl Array {
         }
     }
 
-    /// Returns the indices of the array, excluding the values.
+    /// Returns the indices of the array, excluding the values and separators.
     pub fn without_values(&self) -> RangeSet<usize> {
         let start = self
             .span
