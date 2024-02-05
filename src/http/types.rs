@@ -183,7 +183,7 @@ impl Request {
             .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
     }
 
-    /// Returns the indices of the request excluding the path, headers and body.
+    /// Returns the indices of the request excluding the target, headers and body.
     pub fn without_data(&self) -> RangeSet<usize> {
         let mut indices = self.span.indices.difference(&self.request.target.0.indices);
         for header in &self.headers {
