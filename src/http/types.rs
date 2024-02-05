@@ -104,13 +104,13 @@ impl Spanned<str> for Method {
     }
 }
 
-/// An HTTP request path.
+/// An HTTP request target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Target(pub(crate) Span<str>);
 
 impl Target {
-    /// Returns the path as a string slice.
+    /// Returns the target as a string slice.
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
