@@ -1,3 +1,5 @@
+use utils::range::{RangeDifference, RangeSet};
+
 use crate::{Span, Spanned};
 
 /// An HTTP header name.
@@ -46,7 +48,7 @@ impl Spanned for HeaderValue {
     }
 }
 
-/// An HTTP header.
+/// An HTTP header, including optional whitespace and the trailing CRLF.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Header {
@@ -58,6 +60,13 @@ pub struct Header {
 }
 
 impl Header {
+    /// Returns the indices of the header excluding the value.
+    ///
+    /// The indices will include any optional whitespace and the CRLF.
+    pub fn without_value(&self) -> RangeSet<usize> {
+        self.span.indices.difference(&self.value.span().indices)
+    }
+
     /// Shifts the span range by the given offset.
     pub fn offset(&mut self, offset: usize) {
         self.span.offset(offset);
@@ -72,7 +81,7 @@ impl Spanned for Header {
     }
 }
 
-/// An HTTP request line.
+/// An HTTP request line, including the trailing CRLF.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RequestLine {
@@ -80,16 +89,21 @@ pub struct RequestLine {
 
     /// The request method.
     pub method: Span<str>,
-    /// The request path.
-    pub path: Span<str>,
+    /// The request target.
+    pub target: Span<str>,
 }
 
 impl RequestLine {
+    /// Returns the indices of the request line excluding the request target.
+    pub fn without_target(&self) -> RangeSet<usize> {
+        self.span.indices.difference(&self.target.indices)
+    }
+
     /// Shifts the span range by the given offset.
     pub fn offset(&mut self, offset: usize) {
         self.span.offset(offset);
         self.method.offset(offset);
-        self.path.offset(offset);
+        self.target.offset(offset);
     }
 }
 
@@ -121,6 +135,18 @@ impl Request {
         self.headers
             .iter()
             .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
+    }
+
+    /// Returns the indices of the request excluding the path, headers and body.
+    pub fn without_data(&self) -> RangeSet<usize> {
+        let mut indices = self.span.indices.difference(&self.request.target.indices);
+        for header in &self.headers {
+            indices = indices.difference(header.span.indices());
+        }
+        if let Some(body) = &self.body {
+            indices = indices.difference(body.span.indices());
+        }
+        indices
     }
 
     /// Shifts the span range by the given offset.
@@ -193,6 +219,18 @@ impl Response {
             .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
     }
 
+    /// Returns the indices of the response excluding the headers and body.
+    pub fn without_data(&self) -> RangeSet<usize> {
+        let mut indices = self.span.indices.clone();
+        for header in &self.headers {
+            indices = indices.difference(header.span.indices());
+        }
+        if let Some(body) = &self.body {
+            indices = indices.difference(body.span.indices());
+        }
+        indices
+    }
+
     /// Shifts the span range by the given offset.
     pub fn offset(&mut self, offset: usize) {
         self.span.offset(offset);
@@ -215,22 +253,24 @@ impl Spanned for Response {
 /// An HTTP request or response body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Body(pub(crate) Span);
+pub struct Body {
+    pub(crate) span: Span,
+}
 
 impl Body {
     /// Returns the body as a byte slice.
     pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
+        self.span.as_bytes()
     }
 
     /// Shifts the span range by the given offset.
     pub fn offset(&mut self, offset: usize) {
-        self.0.offset(offset);
+        self.span.offset(offset);
     }
 }
 
 impl Spanned for Body {
     fn span(&self) -> &Span {
-        &self.0
+        &self.span
     }
 }

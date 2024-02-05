@@ -1,4 +1,6 @@
-use std::ops::Range;
+use std::ops::{Index, Range};
+
+use utils::range::{RangeDifference, RangeSet};
 
 use crate::{Span, Spanned};
 
@@ -108,6 +110,13 @@ pub struct KeyValue {
     pub value: JsonValue,
 }
 
+impl KeyValue {
+    /// Returns the indices of the key value pair, excluding the value.
+    pub fn without_value(&self) -> RangeSet<usize> {
+        self.span.indices.difference(&self.value.span().indices)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// A key in a JSON object.
@@ -142,15 +151,6 @@ pub struct Array {
     pub elems: Vec<JsonValue>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-/// An object value.
-pub struct Object {
-    pub(crate) span: Span<str>,
-    /// The key value pairs of the object.
-    pub elems: Vec<KeyValue>,
-}
-
 impl Array {
     /// Get a reference to the value using the given path.
     pub fn get(&self, path: &str) -> Option<&JsonValue> {
@@ -167,11 +167,49 @@ impl Array {
             Some(value)
         }
     }
+
+    /// Returns the indices of the array, excluding the values and separators.
+    pub fn without_values(&self) -> RangeSet<usize> {
+        let start = self
+            .span
+            .indices
+            .min()
+            .expect("array has at least brackets");
+        let end = self
+            .span
+            .indices
+            .max()
+            .expect("array has at least brackets");
+
+        RangeSet::from([start..start + 1, end..end + 1])
+    }
+}
+
+impl Index<usize> for Array {
+    type Output = JsonValue;
+
+    /// Returns the value at the given index of the array.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the index is out of bounds.
+    fn index(&self, index: usize) -> &Self::Output {
+        self.elems.get(index).expect("index is in bounds")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+/// A JSON object value.
+pub struct Object {
+    pub(crate) span: Span<str>,
+    /// The key value pairs of the object.
+    pub elems: Vec<KeyValue>,
 }
 
 impl Object {
     /// Get a reference to the value using the given path.
-    fn get(&self, path: &str) -> Option<&JsonValue> {
+    pub fn get(&self, path: &str) -> Option<&JsonValue> {
         let mut path_iter = path.split('.');
 
         let key = path_iter.next()?;
@@ -183,6 +221,28 @@ impl Object {
         } else {
             Some(value)
         }
+    }
+
+    /// Returns the indices of the object, excluding the key value pairs.
+    pub fn without_pairs(&self) -> RangeSet<usize> {
+        let mut indices = self.span.indices.clone();
+        for kv in &self.elems {
+            indices = indices.difference(&kv.span.indices);
+        }
+        indices
+    }
+}
+
+impl Index<&str> for Object {
+    type Output = JsonValue;
+
+    /// Returns the value at the given key of the object.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the key is not present.
+    fn index(&self, key: &str) -> &Self::Output {
+        self.get(key).expect("key is present")
     }
 }
 
@@ -267,6 +327,8 @@ impl_type!(KeyValue, span);
 
 #[cfg(test)]
 mod tests {
+    use utils::range::IndexRanges;
+
     use crate::json::parse_str;
 
     use super::*;
@@ -296,5 +358,44 @@ mod tests {
         let value = parse_str(src).unwrap();
 
         assert_eq!(value.get("foo.bar.1").unwrap().span(), "14");
+    }
+
+    #[test]
+    fn test_key_value_without_value() {
+        let src = "{\"foo\": \"bar\"\n}";
+
+        let JsonValue::Object(value) = parse_str(src).unwrap() else {
+            panic!("expected object");
+        };
+
+        let indices = value.elems[0].without_value();
+
+        assert_eq!(src.index_ranges(&indices), "\"foo\": \"\"");
+    }
+
+    #[test]
+    fn test_array_without_values() {
+        let src = "[42, 14]";
+
+        let JsonValue::Array(value) = parse_str(src).unwrap() else {
+            panic!("expected object");
+        };
+
+        let indices = value.without_values();
+
+        assert_eq!(src.index_ranges(&indices), "[]");
+    }
+
+    #[test]
+    fn test_object_without_pairs() {
+        let src = "{\"foo\": \"bar\"\n}";
+
+        let JsonValue::Object(value) = parse_str(src).unwrap() else {
+            panic!("expected object");
+        };
+
+        let indices = value.without_pairs();
+
+        assert_eq!(src.index_ranges(&indices), "{\n}");
     }
 }
