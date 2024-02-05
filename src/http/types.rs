@@ -81,6 +81,52 @@ impl Spanned for Header {
     }
 }
 
+/// An HTTP request method.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Method(pub(crate) Span<str>);
+
+impl Method {
+    /// Returns the method as a string slice.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Shifts the span range by the given offset.
+    pub fn offset(&mut self, offset: usize) {
+        self.0.offset(offset);
+    }
+}
+
+impl Spanned<str> for Method {
+    fn span(&self) -> &Span<str> {
+        &self.0
+    }
+}
+
+/// An HTTP request target.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Target(pub(crate) Span<str>);
+
+impl Target {
+    /// Returns the target as a string slice.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Shifts the span range by the given offset.
+    pub fn offset(&mut self, offset: usize) {
+        self.0.offset(offset);
+    }
+}
+
+impl Spanned<str> for Target {
+    fn span(&self) -> &Span<str> {
+        &self.0
+    }
+}
+
 /// An HTTP request line, including the trailing CRLF.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -88,15 +134,15 @@ pub struct RequestLine {
     pub(crate) span: Span<str>,
 
     /// The request method.
-    pub method: Span<str>,
+    pub method: Method,
     /// The request target.
-    pub target: Span<str>,
+    pub target: Target,
 }
 
 impl RequestLine {
     /// Returns the indices of the request line excluding the request target.
     pub fn without_target(&self) -> RangeSet<usize> {
-        self.span.indices.difference(&self.target.indices)
+        self.span.indices.difference(&self.target.0.indices)
     }
 
     /// Shifts the span range by the given offset.
@@ -137,9 +183,9 @@ impl Request {
             .filter(|h| h.name.0.as_str().eq_ignore_ascii_case(name))
     }
 
-    /// Returns the indices of the request excluding the path, headers and body.
+    /// Returns the indices of the request excluding the target, headers and body.
     pub fn without_data(&self) -> RangeSet<usize> {
-        let mut indices = self.span.indices.difference(&self.request.target.indices);
+        let mut indices = self.span.indices.difference(&self.request.target.0.indices);
         for header in &self.headers {
             indices = indices.difference(header.span.indices());
         }
@@ -168,6 +214,52 @@ impl Spanned for Request {
     }
 }
 
+/// An HTTP response code.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Code(pub(crate) Span<str>);
+
+impl Code {
+    /// Returns the response code as a string slice.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Shifts the span range by the given offset.
+    pub fn offset(&mut self, offset: usize) {
+        self.0.offset(offset);
+    }
+}
+
+impl Spanned<str> for Code {
+    fn span(&self) -> &Span<str> {
+        &self.0
+    }
+}
+
+/// An HTTP response reason phrase.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Reason(pub(crate) Span<str>);
+
+impl Reason {
+    /// Returns the response reason phrase as a string slice.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Shifts the span range by the given offset.
+    pub fn offset(&mut self, offset: usize) {
+        self.0.offset(offset);
+    }
+}
+
+impl Spanned<str> for Reason {
+    fn span(&self) -> &Span<str> {
+        &self.0
+    }
+}
+
 /// An HTTP response status.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -175,9 +267,9 @@ pub struct Status {
     pub(crate) span: Span<str>,
 
     /// The response code.
-    pub code: Span<str>,
+    pub code: Code,
     /// The reason phrase.
-    pub reason: Span<str>,
+    pub reason: Reason,
 }
 
 impl Status {
