@@ -64,7 +64,7 @@ pub(crate) fn parse_request_from_bytes(src: &Bytes, offset: usize) -> Result<Req
         request: RequestLine {
             span: Span::new_str(src.clone(), request_line_range),
             method: Span::new_str(src.clone(), get_span_range(src, method)),
-            path: Span::new_from_str(src.clone(), path),
+            target: Span::new_from_str(src.clone(), path),
         },
         headers,
         body: None,

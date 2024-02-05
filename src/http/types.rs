@@ -89,21 +89,21 @@ pub struct RequestLine {
 
     /// The request method.
     pub method: Span<str>,
-    /// The request path.
-    pub path: Span<str>,
+    /// The request target.
+    pub target: Span<str>,
 }
 
 impl RequestLine {
-    /// Returns the indices of the request line excluding the path.
-    pub fn without_path(&self) -> RangeSet<usize> {
-        self.span.indices.difference(&self.path.indices)
+    /// Returns the indices of the request line excluding the request target.
+    pub fn without_target(&self) -> RangeSet<usize> {
+        self.span.indices.difference(&self.target.indices)
     }
 
     /// Shifts the span range by the given offset.
     pub fn offset(&mut self, offset: usize) {
         self.span.offset(offset);
         self.method.offset(offset);
-        self.path.offset(offset);
+        self.target.offset(offset);
     }
 }
 
@@ -139,7 +139,7 @@ impl Request {
 
     /// Returns the indices of the request excluding the path, headers and body.
     pub fn without_data(&self) -> RangeSet<usize> {
-        let mut indices = self.span.indices.difference(&self.request.path.indices);
+        let mut indices = self.span.indices.difference(&self.request.target.indices);
         for header in &self.headers {
             indices = indices.difference(header.span.indices());
         }
